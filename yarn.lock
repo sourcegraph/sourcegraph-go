@@ -4617,6 +4617,12 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.5.7.tgz#8a039d2d1021d22d1ea14c80d8ea468ba2ef3fcc"
   integrity sha1-igOdLRAh0i0eoUyA2OpGi6LvP8w=
 
+"sourcegraph-langserver-http@https://github.com/sourcegraph/sourcegraph-langserver-http#79f80364a33dc0609e7e3a42589bf5582993fc3b":
+  version "0.0.0-DEVELOPMENT"
+  resolved "https://github.com/sourcegraph/sourcegraph-langserver-http#79f80364a33dc0609e7e3a42589bf5582993fc3b"
+  dependencies:
+    vscode-languageserver-types "^3.12.0"
+
 sourcegraph@^18.4.2:
   version "18.4.2"
   resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-18.4.2.tgz#617fb6a6cad0d95bd0994917f50ec9b65e5439ae"
@@ -5133,6 +5139,11 @@ vscode-jsonrpc@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-4.0.0.tgz#a7bf74ef3254d0a0c272fab15c82128e378b3be9"
   integrity sha512-perEnXQdQOJMTDFNv+UF3h1Y0z4iSiaN9jIlb0OqIYgosPCZGYh/MCUlkFtV2668PL69lRDO32hmvL2yiidUYg==
+
+vscode-languageserver-types@^3.12.0:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0.tgz#b704b024cef059f7b326611c99b9c8753c0a18b4"
+  integrity sha512-BnJIxS+5+8UWiNKCP7W3g9FlE7fErFw0ofP5BXJe7c2tl0VeWh+nNHFbwAS2vmVC4a5kYxHBjRy0UeOtziemVA==
 
 vscode-ws-jsonrpc@^0.0.3:
   version "0.0.3"

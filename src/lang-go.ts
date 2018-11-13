@@ -6,6 +6,7 @@ import * as wsrpc from 'vscode-ws-jsonrpc'
 
 import { BehaviorSubject, combineLatest, EMPTY, from, of, Subject, Subscription, Unsubscribable } from 'rxjs'
 import { distinct, distinctUntilChanged, map, shareReplay, switchMap, take } from 'rxjs/operators'
+import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 import { toSocket } from 'vscode-ws-jsonrpc'
 
 interface FullSettings {
@@ -98,7 +99,7 @@ const lspToSEA = {
     },
 }
 
-export function activate(): void {
+export function activateUsingWebSockets(): void {
     const lsaddress: BehaviorSubject<string | undefined> = new BehaviorSubject<string | undefined>(undefined)
     sourcegraph.configuration.subscribe(() => {
         lsaddress.next(sourcegraph.configuration.get<Settings>().get('go.langserver-address'))
@@ -268,4 +269,22 @@ export function activate(): void {
     // be fixed before the beta release of Sourcegraph extensions. In the
     // meantime, work around this limitation by deferring calls to `get`.
     setTimeout(afterActivate, 0)
+}
+
+export function activateUsingLSPProxy(): void {
+    langserverHTTP.activate()
+}
+
+export function activate(): void {
+    // TODO choose which implementation to use based on config so that we can
+    // switch back and forth for testing.
+    const newLanguageServer = false
+    if (newLanguageServer) {
+        activateUsingWebSockets()
+    } else {
+        // We can remove the LSP proxy implementation once all customers with Go
+        // code intelligence have spun up their own language server (post
+        // Sourcegraph 3).
+        activateUsingLSPProxy()
+    }
 }
