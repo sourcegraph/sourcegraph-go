@@ -1,25 +1,11 @@
 import * as sourcegraph from 'sourcegraph'
 import { Location, Position, Range } from 'sourcegraph'
-import * as wsrpc from 'vscode-ws-jsonrpc'
 import * as rpc from 'vscode-jsonrpc'
-import {
-    InitializeResult,
-    InitializeParams,
-    InitializeRequest,
-    HoverRequest,
-    DefinitionRequest,
-    ImplementationRequest,
-    ReferencesRequest,
-    InitializedNotification,
-    InitializeError,
-    RequestType,
-    Definition,
-} from 'vscode-languageserver-protocol'
-
 import * as lsp from 'vscode-languageserver-protocol'
+import * as wsrpc from 'vscode-ws-jsonrpc'
 
-import { BehaviorSubject, Unsubscribable, Subscription, EMPTY, of, combineLatest, Subject, from } from 'rxjs'
-import { map, switchMap, distinct, distinctUntilChanged, take, shareReplay } from 'rxjs/operators'
+import { BehaviorSubject, combineLatest, EMPTY, from, of, Subject, Subscription, Unsubscribable } from 'rxjs'
+import { distinct, distinctUntilChanged, map, shareReplay, switchMap, take } from 'rxjs/operators'
 import { toSocket } from 'vscode-ws-jsonrpc'
 
 interface FullSettings {
@@ -71,17 +57,20 @@ const lspToSEA = {
         definition,
     }: {
         currentDocURI: string
-        definition: Definition
+        definition: lsp.Definition
     }): sourcegraph.Definition => {
         if (!definition) {
             return null
         }
 
         if (Array.isArray(definition)) {
-            return definition.map(location => lspToSEA.location({ currentDocURI: currentDocURI, location }))
+            return definition.map(location => lspToSEA.location({ currentDocURI, location }))
         } else {
             const location = definition
-            return lspToSEA.location({ currentDocURI: currentDocURI, location })
+            return lspToSEA.location({
+                currentDocURI,
+                location,
+            })
         }
     },
     references: ({
@@ -95,9 +84,9 @@ const lspToSEA = {
             return []
         }
 
-        return references.map(location => lspToSEA.location({ currentDocURI: currentDocURI, location }))
+        return references.map(location => lspToSEA.location({ currentDocURI, location }))
     },
-    hover: hover => {
+    hover: (hover: lsp.Hover | null) => {
         if (!hover) {
             return null
         }
@@ -121,36 +110,38 @@ export function activate(): void {
 
     const lsConnection = combineLatest(lsaddress, docSubject).pipe(
         take(1),
-        switchMap(
-            ([address, docDoNotMutate]) =>
-                address && docDoNotMutate
-                    ? from(
-                          connectTo(address).then(async (connection: rpc.MessageConnection) => {
-                              connection.listen()
+        switchMap(([address, docDoNotMutate]) =>
+            address && docDoNotMutate
+                ? from(
+                      connectTo(address).then(async (connection: rpc.MessageConnection) => {
+                          connection.listen()
 
-                              const doc = new URL(docDoNotMutate.href)
-                              doc.hash = ''
+                          const doc = new URL(docDoNotMutate.href)
+                          doc.hash = ''
 
-                              // TODO put the InitializeParams with originalRootUri type somewhere
-                              // like sourcegraph-extension-api or sourcegraph-langserver-js
-                              await connection.sendRequest(
-                                  new RequestType<
-                                      InitializeParams & { originalRootUri: string; rootPath: string },
-                                      InitializeResult,
-                                      InitializeError,
-                                      void
-                                  >('initialize') as any,
-                                  {
-                                      originalRootUri: doc.href,
-                                      rootUri: 'file:///',
-                                      rootPath: '/',
-                                  }
-                              )
-                              connection.sendNotification(InitializedNotification.type)
-                              return connection
-                          })
-                      )
-                    : of(undefined)
+                          // TODO put the InitializeParams with originalRootUri type somewhere
+                          // like sourcegraph-extension-api or sourcegraph-langserver-js
+                          await connection.sendRequest(
+                              new lsp.RequestType<
+                                  lsp.InitializeParams & {
+                                      originalRootUri: string
+                                      rootPath: string
+                                  },
+                                  lsp.InitializeResult,
+                                  lsp.InitializeError,
+                                  void
+                              >('initialize') as any,
+                              {
+                                  originalRootUri: doc.href,
+                                  rootUri: 'file:///',
+                                  rootPath: '/',
+                              }
+                          )
+                          connection.sendNotification(lsp.InitializedNotification.type)
+                          return connection
+                      })
+                  )
+                : of(undefined)
         ),
         shareReplay(1)
     )
@@ -170,11 +161,14 @@ export function activate(): void {
                             }
                         } else {
                             return lspToSEA.hover(
-                                await conn.sendRequest(HoverRequest.type, {
+                                await conn.sendRequest(lsp.HoverRequest.type, {
                                     textDocument: {
                                         uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
                                     },
-                                    position: { line: pos.line, character: pos.character },
+                                    position: {
+                                        line: pos.line,
+                                        character: pos.character,
+                                    },
                                 })
                             )
                         }
@@ -193,11 +187,14 @@ export function activate(): void {
                         } else {
                             return lspToSEA.definition({
                                 currentDocURI: doc.uri,
-                                definition: await conn.sendRequest(DefinitionRequest.type, {
+                                definition: await conn.sendRequest(lsp.DefinitionRequest.type, {
                                     textDocument: {
                                         uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
                                     },
-                                    position: { line: pos.line, character: pos.character },
+                                    position: {
+                                        line: pos.line,
+                                        character: pos.character,
+                                    },
                                 }),
                             })
                         }
@@ -220,7 +217,10 @@ export function activate(): void {
                                     textDocument: {
                                         uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
                                     },
-                                    position: { line: pos.line, character: pos.character },
+                                    position: {
+                                        line: pos.line,
+                                        character: pos.character,
+                                    },
                                 }),
                             })
                         }
@@ -239,11 +239,14 @@ export function activate(): void {
                         } else {
                             return lspToSEA.definition({
                                 currentDocURI: doc.uri,
-                                definition: await conn.sendRequest(ImplementationRequest.type, {
+                                definition: await conn.sendRequest(lsp.ImplementationRequest.type, {
                                     textDocument: {
                                         uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
                                     },
-                                    position: { line: pos.line, character: pos.character },
+                                    position: {
+                                        line: pos.line,
+                                        character: pos.character,
+                                    },
                                 }),
                             })
                         }
@@ -252,7 +255,7 @@ export function activate(): void {
                 .toPromise(),
     })
 
-    function afterActivate() {
+    function afterActivate(): void {
         const address = sourcegraph.configuration.get<Settings>().get('go.langserver-address')
         if (!address) {
             console.warn('No go.langserver-address is set, so Go code intelligence will not work.')

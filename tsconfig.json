@@ -9,6 +9,8 @@
     "outDir": "dist",
     "rootDir": "src",
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   }
 }
