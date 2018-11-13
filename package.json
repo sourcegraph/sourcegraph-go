@@ -1,0 +1,43 @@
+{
+  "name": "lang-go",
+  "title": "Code intelligence for Go",
+  "description": "Provides code intelligence for Go",
+  "publisher": "chris",
+  "activationEvents": [
+    "*"
+  ],
+  "contributes": {
+    "actions": [],
+    "menus": {
+      "editor/title": [],
+      "commandPalette": []
+    },
+    "configuration": {}
+  },
+  "version": "0.0.0-DEVELOPMENT",
+  "license": "MIT",
+  "main": "dist/lang-go.js",
+  "scripts": {
+    "tslint": "tslint -p tsconfig.json './src/**/*.ts'",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "parcel build --out-file dist/lang-go.js src/lang-go.ts",
+    "serve": "parcel serve --no-hmr --out-file dist/lang-go.js src/lang-go.ts",
+    "watch:typecheck": "tsc -p tsconfig.json -w",
+    "watch:build": "tsc -p tsconfig.dist.json -w",
+    "sourcegraph:prepublish": "npm run build"
+  },
+  "browserslist": [
+    "last 1 Chrome versions",
+    "last 1 Firefox versions",
+    "last 1 Edge versions",
+    "last 1 Safari versions"
+  ],
+  "devDependencies": {
+    "@sourcegraph/tsconfig": "^3.0.0",
+    "@sourcegraph/tslint-config": "^12.0.0",
+    "parcel-bundler": "^1.10.3",
+    "sourcegraph": "^18.4.2",
+    "tslint": "^5.11.0",
+    "typescript": "^3.1.6"
+  }
+}
