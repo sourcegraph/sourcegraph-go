@@ -213,7 +213,7 @@ export function activate(): void {
                         } else {
                             return lspToSEA.references({
                                 currentDocURI: doc.uri,
-                                references: await conn.sendRequest(ReferencesRequest.type, {
+                                references: await conn.sendRequest(lsp.ReferencesRequest.type, {
                                     textDocument: {
                                         uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
                                     },
