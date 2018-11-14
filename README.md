@@ -1,34 +1,17 @@
-# Code intelligence for Go
+⚠️ WIP Go extension ⚠️
 
-Provides code intelligence for Go.
+This extension provides Go code intelligence in 2 ways:
 
-## Prerequisites
+- **LSP Proxy**: this extension literally `import`s [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http) (deprecated)
+- **Standalone [go-langserver](https://github.com/sourcegraph/go-langserver)**: connects over WebSockets
 
-Sourcegraph extensions are written in TypeScript and are distributed as bundled JavaScript files that run on the client. For creation, publishing, and viewing, you need:
+Currently, this extension **always use LSP proxy** (this is hard-coded in [./src/lang-go.ts](./src/lang-go.ts)).
 
-- **Creation**: Install [Node.js](https://nodejs.org).
-- **Publishing**: Install the [Sourcegraph CLI (`src`)](https://github.com/sourcegraph/src-cli#installation) and create a [Sourcegraph.com account](https://sourcegraph.com/sign-up).
-- **Viewing**: Install the Sourcegraph extension for [Chrome](https://chrome.google.com/webstore/detail/sourcegraph/dgjhfomjieaadpoljlnidmbgkdffpack) or [Firefox](https://addons.mozilla.org/en-US/firefox/addon/sourcegraph/).
+Here's the plan for dropping the LSP Proxy way:
 
-## Set up
-
-```
-npm install
-```
-
-## Lint and type check
-
-```
-npm run tslint
-npm run typecheck
-```
-
-## Publish
-
-```
-src extensions publish
-```
-
-## Sourecgraph extension API
-
-Visit the [Sourcegraph extension documentation](https://github.com/sourcegraph/sourcegraph-extension-docs) and check out some [Sourcegraph extension samples](https://github.com/sourcegraph/sourcegraph-extension-samples).
+- Generate an access token and pass it in the `initializaationOptions` to LSP Proxy
+  - Sourcegraph 2: no-op
+  - Sourcegraph 3: when the token is present, translate the `rootUri` from `git://` to `https://TOKEN@frontend/.../raw/`, and `xlang-go` will fetch that zip archive
+- Implement cross-repo code intelligence using search and existing code intelligence features (not sure what this will look like yet)
+- Construct an authenticated zip URL from the token and pass it directly to the standalone go-langserver via `rootUri`
+- Drop LSP Proxy once all customers have upgraded
