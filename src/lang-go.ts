@@ -13,6 +13,19 @@ import gql from 'tagged-template-noop'
 
 const ACCESS_TOKEN_SETTING = 'go.accessToken'
 
+function addAuthToURL(url: string, token: string): string {
+    const authedURL = new URL(url)
+    authedURL.username = token
+    return authedURL.href
+}
+
+function constructZipURL({ repoName, revision, token }: { repoName: string; revision: string; token: string }): string {
+    const zipURL = new URL(sourcegraph.internal.sourcegraphURL.toString())
+    zipURL.pathname = repoName + '@' + revision + '/-/raw'
+    zipURL.username = token
+    return zipURL.href
+}
+
 async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
     const { data, errors } = await sourcegraph.commands.executeCommand('queryGraphQL', query, variables)
     if (errors) {
@@ -326,8 +339,17 @@ export function activateUsingLSPProxy(): void {
 }
 
 async function activateUsingLSPProxyAsync(): Promise<void> {
-    const token = await getOrCreateAccessToken()
-    langserverHTTP.activateWith((method, doc, pos) => langserverHTTP.provideLSPResults(method, doc, pos, { token }))
+    langserverHTTP.activateWith({
+        provideLSPResults: async (method, doc, pos) => {
+            const docURL = new URL(doc.uri)
+            const zipURL = constructZipURL({
+                repoName: docURL.pathname.replace(/^\/+/, ''),
+                revision: docURL.search.substr(1),
+                token: await getOrCreateAccessToken(),
+            })
+            return langserverHTTP.provideLSPResults(method, doc, pos, { zipURL })
+        },
+    })
 }
 
 export function activate(): void {
