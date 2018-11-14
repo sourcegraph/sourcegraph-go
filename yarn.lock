@@ -4826,6 +4826,11 @@ svgo@^1.0.0, svgo@^1.0.5:
     unquote "~1.1.1"
     util.promisify "~1.0.0"
 
+tagged-template-noop@^2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/tagged-template-noop/-/tagged-template-noop-2.1.0.tgz#3501d67fd75612ab40e6040056ea881d1161c4f5"
+  integrity sha512-VOPA7ZucOLvew9xq+AwABXil7AHQZa3G7T3QOQoUveNIl3EwNsMN79JHn8v7zgpM1Pd8R36MrntUvaWqLqjg1w==
+
 tar@^4:
   version "4.4.8"
   resolved "https://registry.yarnpkg.com/tar/-/tar-4.4.8.tgz#b19eec3fde2a96e64666df9fdb40c5ca1bc3747d"

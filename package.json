@@ -49,6 +49,7 @@
     "signale": "^1.3.0",
     "source-map-support": "^0.5.9",
     "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#79f80364a33dc0609e7e3a42589bf5582993fc3b",
+    "tagged-template-noop": "^2.1.0",
     "vscode-jsonrpc": "^4.0.0",
     "vscode-ws-jsonrpc": "^0.0.3",
     "ws": "^6.1.0"

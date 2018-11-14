@@ -9,6 +9,56 @@ import { distinct, distinctUntilChanged, map, shareReplay, switchMap, take } fro
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 import { toSocket } from 'vscode-ws-jsonrpc'
 
+import gql from 'tagged-template-noop'
+
+const ACCESS_TOKEN_SETTING = 'go.accessToken'
+
+async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
+    const { data, errors } = await sourcegraph.commands.executeCommand('queryGraphQL', query, variables)
+    if (errors) {
+        throw Object.assign(new Error(errors.map((err: any) => err.message).join('\n')), { errors })
+    }
+    return data
+}
+
+let accessTokenPromise: Promise<string>
+export async function getOrCreateAccessToken(): Promise<string> {
+    const accessToken = sourcegraph.configuration.get().get(ACCESS_TOKEN_SETTING) as string | undefined
+    if (accessToken) {
+        return accessToken
+    }
+    if (accessTokenPromise) {
+        return await accessTokenPromise
+    }
+    accessTokenPromise = createAccessToken()
+    return await accessTokenPromise
+}
+
+async function createAccessToken(): Promise<string> {
+    const { currentUser } = await queryGraphQL(gql`
+        query {
+            currentUser {
+                id
+            }
+        }
+    `)
+    const currentUserId: string = currentUser.id
+    const result = await queryGraphQL(
+        gql`
+            mutation CreateAccessToken($user: ID!, $scopes: [String!]!, $note: String!) {
+                createAccessToken(user: $user, scopes: $scopes, note: $note) {
+                    id
+                    token
+                }
+            }
+        `,
+        { user: currentUserId, scopes: ['user:all'], note: 'lang-go' }
+    )
+    const token: string = result.createAccessToken.token
+    await sourcegraph.configuration.get().update(ACCESS_TOKEN_SETTING, token)
+    return token
+}
+
 interface FullSettings {
     'go.langserver-address': string
 }
@@ -272,19 +322,27 @@ export function activateUsingWebSockets(): void {
 }
 
 export function activateUsingLSPProxy(): void {
-    langserverHTTP.activate()
+    activateUsingLSPProxyAsync()
+}
+
+async function activateUsingLSPProxyAsync(): Promise<void> {
+    const token = await getOrCreateAccessToken()
+    langserverHTTP.activateWith((method, doc, pos) => langserverHTTP.provideLSPResults(method, doc, pos, { token }))
 }
 
 export function activate(): void {
-    // TODO choose which implementation to use based on config so that we can
-    // switch back and forth for testing.
-    const newLanguageServer = false
-    if (newLanguageServer) {
-        activateUsingWebSockets()
-    } else {
-        // We can remove the LSP proxy implementation once all customers with Go
-        // code intelligence have spun up their own language server (post
-        // Sourcegraph 3).
-        activateUsingLSPProxy()
+    function afterActivate(): void {
+        // TODO choose which implementation to use based on config so that we can
+        // switch back and forth for testing.
+        const newLanguageServer = false
+        if (newLanguageServer) {
+            activateUsingWebSockets()
+        } else {
+            // We can remove the LSP proxy implementation once all customers with Go
+            // code intelligence have spun up their own language server (post
+            // Sourcegraph 3).
+            activateUsingLSPProxy()
+        }
     }
+    setTimeout(afterActivate, 0)
 }
