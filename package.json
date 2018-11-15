@@ -4,7 +4,7 @@
   "description": "Provides code intelligence for Go",
   "publisher": "chris",
   "activationEvents": [
-    "*"
+    "onLanguage:go"
   ],
   "contributes": {
     "actions": [],
