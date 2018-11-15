@@ -48,7 +48,7 @@
     "rxjs": "^6.3.3",
     "signale": "^1.3.0",
     "source-map-support": "^0.5.9",
-    "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#a28d81e87d0d99b53a4e5163ae0393eaae645bda",
+    "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3",
     "tagged-template-noop": "^2.1.0",
     "vscode-jsonrpc": "^4.0.0",
     "vscode-ws-jsonrpc": "^0.0.3",

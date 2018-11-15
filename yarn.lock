@@ -4617,9 +4617,9 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.5.7.tgz#8a039d2d1021d22d1ea14c80d8ea468ba2ef3fcc"
   integrity sha1-igOdLRAh0i0eoUyA2OpGi6LvP8w=
 
-"sourcegraph-langserver-http@https://github.com/sourcegraph/sourcegraph-langserver-http#a28d81e87d0d99b53a4e5163ae0393eaae645bda":
+"sourcegraph-langserver-http@https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3":
   version "0.0.0-DEVELOPMENT"
-  resolved "https://github.com/sourcegraph/sourcegraph-langserver-http#a28d81e87d0d99b53a4e5163ae0393eaae645bda"
+  resolved "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3"
   dependencies:
     vscode-languageserver-types "^3.12.0"
 
