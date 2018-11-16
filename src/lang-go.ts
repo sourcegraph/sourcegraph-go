@@ -286,9 +286,7 @@ export function activateUsingLSPProxy(): void {
 }
 
 export function activate(): void {
-    console.log('activate')
     function afterActivate(): void {
-        console.log('afteractivate')
         const address = sourcegraph.configuration.get<Settings>().get(LANGSERVER_ADDRESS_SETTING)
         if (address) {
             console.log('Detected langserver address', address, 'using WebSockets to communicate with it.')
