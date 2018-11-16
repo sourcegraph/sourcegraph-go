@@ -23,6 +23,7 @@ import { distinct, distinctUntilChanged, map, share, shareReplay, switchMap, tak
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
 import gql from 'tagged-template-noop'
+import { LANGSERVER_ADDRESS_SETTING, Settings } from './settings'
 
 // The key in settings where this extension looks to find the access token for
 // the current user.
@@ -106,108 +107,110 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
     }
 }
 
-const LANGSERVER_ADDRESS_SETTING = 'lang-go.address'
-
-interface FullSettings {
-    'lang-go.address': string
-}
-
-type Settings = Partial<FullSettings>
-
-function connectTo(address: string): Promise<rpc.MessageConnection> {
-    return new Promise(resolve => {
+async function connectAndInitialize(address: string, root: URL): Promise<rpc.MessageConnection> {
+    const connection = (await new Promise((resolve, reject) => {
         const webSocket = new WebSocket(address)
         const conn = rpc.createMessageConnection(
             new wsrpc.WebSocketMessageReader(wsrpc.toSocket(webSocket)),
             new wsrpc.WebSocketMessageWriter(wsrpc.toSocket(webSocket))
         )
         webSocket.addEventListener('open', () => resolve(conn))
+        webSocket.addEventListener('error', reject)
+    })) as rpc.MessageConnection
+
+    connection.listen()
+
+    await connection.sendRequest(
+        new lsp.RequestType<
+            lsp.InitializeParams & {
+                originalRootUri: string
+                rootPath: string
+            },
+            lsp.InitializeResult,
+            lsp.InitializeError,
+            void
+        >('initialize') as any,
+        {
+            originalRootUri: root.href,
+            rootUri: 'file:///',
+            rootPath: '/',
+            initializationOptions: {
+                zipURL: constructZipURL({
+                    repoName: root.pathname.replace(/^\/+/, ''),
+                    revision: root.search.substr(1),
+                    token: await getOrTryToCreateAccessToken(),
+                }),
+            },
+        }
+    )
+
+    connection.sendNotification(lsp.InitializedNotification.type)
+
+    return connection
+}
+
+type SendRequest = (doc: sourcegraph.TextDocument, requestType: any, request: any) => Promise<any>
+
+/**
+ * Creates a function of type SendRequest that can be used to send LSP
+ * requests to the corresponding language server. This returns an Observable
+ * so that all the connections to that language server can be disposed of
+ * when calling .unsubscribe().
+ *
+ * Internally, this maintains a mapping from rootURI to the connection
+ * associated with that rootURI, so it supports multiple roots (untested).
+ */
+function mkSendRequest(address: string): Observable<SendRequest> {
+    function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
+        const url = new URL(doc.uri)
+        url.hash = ''
+        return url
+    }
+
+    const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
+    function connectionFor(root: URL): Promise<rpc.MessageConnection> {
+        if (rootURIToConnection[root.href]) {
+            return rootURIToConnection[root.href]
+        } else {
+            rootURIToConnection[root.href] = connectAndInitialize(address, root)
+            return rootURIToConnection[root.href]
+        }
+    }
+
+    const sendRequest: SendRequest = async (doc, requestType, request) =>
+        await (await connectionFor(rootURIFromDoc(doc))).sendRequest(requestType, request)
+
+    return Observable.create((observer: Observer<SendRequest>) => {
+        observer.next(sendRequest)
+        return () => {
+            for (const rootURI of Object.keys(rootURIToConnection)) {
+                if (rootURIToConnection[rootURI]) {
+                    rootURIToConnection[rootURI].then(connection => connection.dispose())
+                    delete rootURIToConnection[rootURI]
+                }
+            }
+        }
     })
 }
 
+/**
+ * Uses WebSockets to communicate with a language server.
+ */
 export function activateUsingWebSockets(): void {
-    const lsaddress: BehaviorSubject<string | undefined> = new BehaviorSubject<string | undefined>(undefined)
+    const langserverAddress: BehaviorSubject<string | undefined> = new BehaviorSubject<string | undefined>(undefined)
     sourcegraph.configuration.subscribe(() => {
-        lsaddress.next(sourcegraph.configuration.get<Settings>().get('lang-go.address'))
+        langserverAddress.next(sourcegraph.configuration.get<Settings>().get(LANGSERVER_ADDRESS_SETTING))
     })
 
-    type SendType = (doc: sourcegraph.TextDocument, requestType: any, request: any) => Promise<lsp.Hover>
-    function mkSendRequest(address: string): Observable<SendType> {
-        function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
-            const url = new URL(doc.uri)
-            url.hash = ''
-            return url
-        }
-        const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
-        function connectionFor(root: URL): Promise<rpc.MessageConnection> {
-            if (rootURIToConnection[root.href]) {
-                return rootURIToConnection[root.href]
-            } else {
-                rootURIToConnection[root.href] = connectTo(address).then(async (connection: rpc.MessageConnection) => {
-                    connection.listen()
-
-                    const zipURL = constructZipURL({
-                        repoName: root.pathname.replace(/^\/+/, ''),
-                        revision: root.search.substr(1),
-                        token: await getOrTryToCreateAccessToken(),
-                    })
-
-                    await connection.sendRequest(
-                        new lsp.RequestType<
-                            lsp.InitializeParams & {
-                                originalRootUri: string
-                                rootPath: string
-                            },
-                            lsp.InitializeResult,
-                            lsp.InitializeError,
-                            void
-                        >('initialize') as any,
-                        {
-                            originalRootUri: root.href,
-                            rootUri: 'file:///',
-                            rootPath: '/',
-                            initializationOptions: { zipURL },
-                        }
-                    )
-                    connection.sendNotification(lsp.InitializedNotification.type)
-                    return connection
-                })
-            }
-            return rootURIToConnection[root.href]
-        }
-        const send: SendType = async (doc, requestType, request) => {
-            try {
-                return (await (await connectionFor(rootURIFromDoc(doc))).sendRequest(requestType, request)) as lsp.Hover
-            } catch (e) {
-                return {
-                    contents: { value: e },
-                } as lsp.Hover
-            }
-        }
-
-        return Observable.create((observer: Observer<SendType>) => {
-            observer.next(send)
-            observer.complete()
-            return () => {
-                for (const rootHref in Object.keys(rootURIToConnection)) {
-                    if (rootURIToConnection[rootHref]) {
-                        rootURIToConnection[rootHref].then(connection => connection.dispose())
-                        delete rootURIToConnection[rootHref]
-                    }
-                }
-            }
-        })
-    }
     const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${LANGSERVER_ADDRESS_SETTING}": "wss://example.com" to your settings.`
-    const NO_CONNECTION_ERROR =
-        'Not yet connected to the Go language server. Check the devtools console for connection errors and make sure the langserver is running.'
-    const send = lsaddress.pipe(
+
+    const sendRequestObservable = langserverAddress.pipe(
         switchMap(address => (address ? mkSendRequest(address) : of(undefined))),
         shareReplay(1)
     )
 
-    function sendRequest(doc: sourcegraph.TextDocument, requestType: any, request: any): Promise<lsp.Hover> {
-        return send
+    function sendRequest(doc: sourcegraph.TextDocument, requestType: any, request: any): Promise<any> {
+        return sendRequestObservable
             .pipe(
                 take(1),
                 switchMap(send => (send ? send(doc, requestType, request) : throwError(NO_ADDRESS_ERROR)))
@@ -215,119 +218,54 @@ export function activateUsingWebSockets(): void {
             .toPromise()
     }
 
+    // TODO When go.langserver-address is set to an invalid address
+    // and this extension fails to connect, the hover spinner hangs
+    // indefinitely. @felix, could you take a look? I'm guessing the
+    // error is not getting propagated, but despite 30 minutes of
+    // debugging I can't figure out why.
+    const sendDocPositionRequest = (doc: sourcegraph.TextDocument, pos: sourcegraph.Position, ty: any): Promise<any> =>
+        sendRequest(doc, ty, {
+            textDocument: {
+                uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
+            },
+            position: {
+                line: pos.line,
+                character: pos.character,
+            },
+        })
+
     sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
-        provideHover: async (doc, pos) =>
-            sendRequest(doc, lsp.HoverRequest.type, {
-                textDocument: {
-                    uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-                },
-                position: {
-                    line: pos.line,
-                    character: pos.character,
-                },
-            })
-                .then(resp => convert.hover(resp))
-                .catch(e => ({ contents: { value: e } })),
+        provideHover: async (doc, pos) => {
+            const response = await sendDocPositionRequest(doc, pos, lsp.HoverRequest.type)
+            return convert.hover(response)
+        },
     })
 
-    // sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
-    //     provideDefinition: async (doc, pos) =>
-    //         lsConnection
-    //             .pipe(
-    //                 switchMap(async conn => {
-    //                     if (!conn) {
-    //                         return null
-    //                     } else {
-    //                         return lspToSEA.definition({
-    //                             currentDocURI: doc.uri,
-    //                             definition: await conn.sendRequest(lsp.DefinitionRequest.type, {
-    //                                 textDocument: {
-    //                                     uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-    //                                 },
-    //                                 position: {
-    //                                     line: pos.line,
-    //                                     character: pos.character,
-    //                                 },
-    //                             }),
-    //                         })
-    //                     }
-    //                 })
-    //             )
-    //             .toPromise(),
-    // })
+    sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
+        provideDefinition: async (doc, pos) => {
+            const response = await sendDocPositionRequest(doc, pos, new lsp.RequestType<any, any, any, void>(
+                'textDocument/xdefinition'
+            ) as any)
+            return convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })
+        },
+    })
 
-    // sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-    //     provideReferences: async (doc, pos) =>
-    //         lsConnection
-    //             .pipe(
-    //                 switchMap(async conn => {
-    //                     if (!conn) {
-    //                         return null
-    //                     } else {
-    //                         return lspToSEA.references({
-    //                             currentDocURI: doc.uri,
-    //                             references: await conn.sendRequest(lsp.ReferencesRequest.type, {
-    //                                 textDocument: {
-    //                                     uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-    //                                 },
-    //                                 position: {
-    //                                     line: pos.line,
-    //                                     character: pos.character,
-    //                                 },
-    //                             }),
-    //                         })
-    //                     }
-    //                 })
-    //             )
-    //             .toPromise(),
-    // })
+    sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+        provideReferences: async (doc, pos) => {
+            const response = await sendDocPositionRequest(doc, pos, lsp.ReferencesRequest.type)
+            return convert.references({ currentDocURI: doc.uri, references: response })
+        },
+    })
 
-    // sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
-    //     provideImplementation: async (doc, pos) =>
-    //         lsConnection
-    //             .pipe(
-    //                 switchMap(async conn => {
-    //                     if (!conn) {
-    //                         return null
-    //                     } else {
-    //                         return lspToSEA.definition({
-    //                             currentDocURI: doc.uri,
-    //                             definition: await conn.sendRequest(lsp.ImplementationRequest.type, {
-    //                                 textDocument: {
-    //                                     uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-    //                                 },
-    //                                 position: {
-    //                                     line: pos.line,
-    //                                     character: pos.character,
-    //                                 },
-    //                             }),
-    //                         })
-    //                     }
-    //                 })
-    //             )
-    //             .toPromise(),
-    // })
-
-    function afterActivate(): void {
-        const address = sourcegraph.configuration.get<Settings>().get('lang-go.address')
-        if (!address) {
-            console.warn('No lang-go.address is set, so Go code intelligence will not work.')
-            return
-        }
-    }
-    // Error creating extension host: Error: Configuration is not yet available.
-    // `sourcegraph.configuration.get` is not usable until after the extension
-    // `activate` function is finished executing. This is a known issue and will
-    // be fixed before the beta release of Sourcegraph extensions. In the
-    // meantime, work around this limitation by deferring calls to `get`.
-    setTimeout(afterActivate, 0)
+    sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
+        provideImplementation: async (doc, pos) => {
+            const response = await sendDocPositionRequest(doc, pos, lsp.ImplementationRequest.type)
+            return convert.references({ currentDocURI: doc.uri, references: response })
+        },
+    })
 }
 
 export function activateUsingLSPProxy(): void {
-    activateUsingLSPProxyAsync()
-}
-
-async function activateUsingLSPProxyAsync(): Promise<void> {
     langserverHTTP.activateWith({
         provideLSPResults: async (method, doc, pos) => {
             const docURL = new URL(doc.uri)
@@ -342,16 +280,20 @@ async function activateUsingLSPProxyAsync(): Promise<void> {
 }
 
 export function activate(): void {
+    console.log('activate')
     function afterActivate(): void {
-        // TODO choose which implementation to use based on config so that we can
-        // switch back and forth for testing.
-        const newLanguageServer = true
-        if (newLanguageServer) {
+        console.log('afteractivate')
+        const address = sourcegraph.configuration.get<Settings>().get(LANGSERVER_ADDRESS_SETTING)
+        if (address) {
+            console.log('Detected langserver address', address, 'using WebSockets to communicate with it.')
             activateUsingWebSockets()
         } else {
-            // We can remove the LSP proxy implementation once all customers with Go
-            // code intelligence have spun up their own language server (post
-            // Sourcegraph 3).
+            // We can remove the LSP proxy implementation once all customers
+            // with Go code intelligence have spun up their own language server
+            // (post Sourcegraph 3).
+            console.log(
+                `Did not detect a langserver address in the setting ${LANGSERVER_ADDRESS_SETTING}, falling back to using the LSP gateway.`
+            )
             activateUsingLSPProxy()
         }
     }
