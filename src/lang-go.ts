@@ -173,6 +173,12 @@ function mkSendRequest(address: string): Observable<SendRequest> {
             return rootURIToConnection[root.href]
         } else {
             rootURIToConnection[root.href] = connectAndInitialize(address, root)
+            setTimeout(() => rootURIToConnection[root.href].then(c => c.dispose()), 5000)
+            rootURIToConnection[root.href].then(connection => {
+                connection.onDispose(() => {
+                    delete rootURIToConnection[root.href]
+                })
+            })
             return rootURIToConnection[root.href]
         }
     }
