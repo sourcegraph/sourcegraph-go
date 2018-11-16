@@ -24,7 +24,7 @@
     "serve": "parcel serve --no-hmr --out-file dist/lang-go.js src/lang-go.ts",
     "watch:typecheck": "tsc -p tsconfig.json -w",
     "watch:build": "tsc -p tsconfig.dist.json -w",
-    "sourcegraph:prepublish": "npm run build"
+    "sourcegraph:prepublish": "yarn run build"
   },
   "browserslist": [
     "last 1 Chrome versions",
