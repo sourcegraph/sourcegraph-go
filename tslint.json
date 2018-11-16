@@ -3,6 +3,7 @@
     "@sourcegraph/tslint-config"
   ],
   "rules": {
-    "rxjs-no-wholesale": false
+    "rxjs-no-wholesale": false,
+    "forin": false
   }
 }
