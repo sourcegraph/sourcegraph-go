@@ -13,16 +13,20 @@ import gql from 'tagged-template-noop'
 
 const ACCESS_TOKEN_SETTING = 'go.accessToken'
 
-function addAuthToURL(url: string, token: string): string {
-    const authedURL = new URL(url)
-    authedURL.username = token
-    return authedURL.href
-}
-
-function constructZipURL({ repoName, revision, token }: { repoName: string; revision: string; token: string }): string {
+function constructZipURL({
+    repoName,
+    revision,
+    token,
+}: {
+    repoName: string
+    revision: string
+    token: string | undefined
+}): string {
     const zipURL = new URL(sourcegraph.internal.sourcegraphURL.toString())
     zipURL.pathname = repoName + '@' + revision + '/-/raw'
-    zipURL.username = token
+    if (token) {
+        zipURL.username = token
+    }
     return zipURL.href
 }
 
@@ -34,8 +38,9 @@ async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
     return data
 }
 
-let accessTokenPromise: Promise<string>
-export async function getOrCreateAccessToken(): Promise<string> {
+// Undefined means the current user is anonymous.
+let accessTokenPromise: Promise<string | undefined>
+export async function getOrTryToCreateAccessToken(): Promise<string | undefined> {
     const accessToken = sourcegraph.configuration.get().get(ACCESS_TOKEN_SETTING) as string | undefined
     if (accessToken) {
         return accessToken
@@ -43,11 +48,11 @@ export async function getOrCreateAccessToken(): Promise<string> {
     if (accessTokenPromise) {
         return await accessTokenPromise
     }
-    accessTokenPromise = createAccessToken()
+    accessTokenPromise = tryToCreateAccessToken()
     return await accessTokenPromise
 }
 
-async function createAccessToken(): Promise<string> {
+async function tryToCreateAccessToken(): Promise<string | undefined> {
     const { currentUser } = await queryGraphQL(gql`
         query {
             currentUser {
@@ -55,6 +60,9 @@ async function createAccessToken(): Promise<string> {
             }
         }
     `)
+    if (!currentUser) {
+        return undefined
+    }
     const currentUserId: string = currentUser.id
     const result = await queryGraphQL(
         gql`
@@ -345,7 +353,7 @@ async function activateUsingLSPProxyAsync(): Promise<void> {
             const zipURL = constructZipURL({
                 repoName: docURL.pathname.replace(/^\/+/, ''),
                 revision: docURL.search.substr(1),
-                token: await getOrCreateAccessToken(),
+                token: await getOrTryToCreateAccessToken(),
             })
             return langserverHTTP.provideLSPResults(method, doc, pos, { zipURL })
         },
