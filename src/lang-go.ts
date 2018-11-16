@@ -177,6 +177,9 @@ function mkSendRequest(address: string): Observable<SendRequest> {
                 connection.onDispose(() => {
                     delete rootURIToConnection[root.href]
                 })
+                connection.onClose(() => {
+                    delete rootURIToConnection[root.href]
+                })
             })
             return rootURIToConnection[root.href]
         }
