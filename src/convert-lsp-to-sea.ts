@@ -1,5 +1,6 @@
 import * as sourcegraph from 'sourcegraph'
 import * as lsp from 'vscode-languageserver-protocol'
+import * as lspext from './lspext'
 
 export const location = ({
     currentDocURI,
@@ -55,7 +56,7 @@ export const xdefinition = ({
     xdefinition,
 }: {
     currentDocURI: string
-    xdefinition: { location: lsp.Location }[] | null
+    xdefinition: lspext.Xdefinition[] | null
 }): sourcegraph.Definition => {
     if (!xdefinition) {
         return null
@@ -76,6 +77,20 @@ export const references = ({
     }
 
     return references.map(loc => location({ currentDocURI, location: loc }))
+}
+
+export const xreferences = ({
+    references,
+}: {
+    references: (lspext.Xreference & { currentDocURI: string })[] | null
+}): sourcegraph.Location[] => {
+    if (!references) {
+        return []
+    }
+
+    return references.map(reference =>
+        location({ currentDocURI: reference.currentDocURI, location: reference.reference })
+    )
 }
 
 export const hover = (hover: lsp.Hover | null) => {

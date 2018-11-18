@@ -1,9 +1,11 @@
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
+import LRUCache from 'lru-cache'
 import * as sourcegraph from 'sourcegraph'
 import { Location, Position, Range } from 'sourcegraph'
 import * as rpc from 'vscode-jsonrpc'
 import * as lsp from 'vscode-languageserver-protocol'
 import * as convert from './convert-lsp-to-sea'
+import * as lspext from './lspext'
 
 import {
     BehaviorSubject,
@@ -19,7 +21,18 @@ import {
     throwError,
     Unsubscribable,
 } from 'rxjs'
-import { distinct, distinctUntilChanged, map, share, shareReplay, switchMap, take } from 'rxjs/operators'
+import {
+    concat,
+    distinct,
+    distinctUntilChanged,
+    flatMap,
+    map,
+    share,
+    shareReplay,
+    switchMap,
+    take,
+    toArray,
+} from 'rxjs/operators'
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
 import gql from 'tagged-template-noop'
@@ -149,7 +162,18 @@ async function connectAndInitialize(address: string, root: URL): Promise<rpc.Mes
     return connection
 }
 
-type SendRequest = (doc: sourcegraph.TextDocument, requestType: any, request: any) => Promise<any>
+type SendRequest = (rootURI: URL, requestType: any, request: any) => Promise<any>
+
+function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
+    const url = new URL(doc.uri)
+    url.hash = ''
+    return url
+}
+
+// data T
+// mkT : (a -> b) -> T
+// get : a -> T -> b
+// clear : T -> ()
 
 /**
  * Creates a function of type SendRequest that can be used to send LSP
@@ -161,12 +185,6 @@ type SendRequest = (doc: sourcegraph.TextDocument, requestType: any, request: an
  * associated with that rootURI, so it supports multiple roots (untested).
  */
 function mkSendRequest(address: string): Observable<SendRequest> {
-    function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
-        const url = new URL(doc.uri)
-        url.hash = ''
-        return url
-    }
-
     const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
     function connectionFor(root: URL): Promise<rpc.MessageConnection> {
         if (rootURIToConnection[root.href]) {
@@ -185,8 +203,8 @@ function mkSendRequest(address: string): Observable<SendRequest> {
         }
     }
 
-    const sendRequest: SendRequest = async (doc, requestType, request) =>
-        await (await connectionFor(rootURIFromDoc(doc))).sendRequest(requestType, request)
+    const sendRequest: SendRequest = async (rootURI, requestType, request) =>
+        await (await connectionFor(rootURI)).sendRequest(requestType, request)
 
     return Observable.create((observer: Observer<SendRequest>) => {
         observer.next(sendRequest)
@@ -199,6 +217,105 @@ function mkSendRequest(address: string): Observable<SendRequest> {
             }
         }
     })
+}
+
+interface FileMatch {
+    repository: {
+        name: string
+    }
+}
+
+interface SearchResponse {
+    search: {
+        results: {
+            results: FileMatch[]
+        }
+    }
+    errors: string[]
+}
+
+async function xrefs(
+    doc: sourcegraph.TextDocument,
+    pos: sourcegraph.Position,
+    sendRequest: SendRequest
+): Promise<(lspext.Xreference & { currentDocURI: string })[]> {
+    const response = (await sendRequest(
+        rootURIFromDoc(doc),
+        new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+        positionParams(doc, pos)
+    )) as lspext.Xdefinition[] | null
+    if (!response) {
+        console.error('No response to xdefinition')
+        return Promise.reject()
+    }
+    if (response.length === 0) {
+        console.error('No definitions')
+        return Promise.reject()
+    }
+    const definition = response[0]
+    const query = `\t"${definition.symbol.package}"`
+    const data = (await queryGraphQL(
+        `
+query FindDependents($query: String!) {
+  search(query: $query) {
+    results {
+      results {
+        ... on FileMatch {
+          repository {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+	`,
+        { query }
+    )) as SearchResponse
+    if (
+        !data ||
+        !data.search ||
+        !data.search.results ||
+        !data.search.results.results ||
+        !Array.isArray(data.search.results.results)
+    ) {
+        throw new Error('No search results - this should not happen.')
+    }
+    const repos = new Set(data.search.results.results.filter(r => r.repository).map(r => r.repository.name))
+    // Assumes the import path is the same as the repo name - not always true!
+    repos.delete(definition.symbol.package)
+    return from(repos)
+        .pipe(
+            flatMap(async repo => {
+                const rootURI = `git://${repo}?master`
+                // TODO limit the number of connections to the language server (LRU?)
+                const response = (await sendRequest(
+                    new URL(rootURI),
+                    new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                    {
+                        query: definition.symbol,
+                        limit: 50,
+                    } as { query: lspext.LSPSymbol; limit: number }
+                )) as lspext.Xreference[]
+
+                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI }))
+            }),
+            toArray()
+        )
+        .toPromise()
+        .then(x => [].concat.apply([], x))
+}
+
+function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): any {
+    return {
+        textDocument: {
+            uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
+        },
+        position: {
+            line: pos.line,
+            character: pos.character,
+        },
+    }
 }
 
 /**
@@ -217,11 +334,11 @@ export function activateUsingWebSockets(): void {
         shareReplay(1)
     )
 
-    function sendRequest(doc: sourcegraph.TextDocument, requestType: any, request: any): Promise<any> {
+    function sendRequest(rootURI: URL, requestType: any, request: any): Promise<any> {
         return sendRequestObservable
             .pipe(
                 take(1),
-                switchMap(send => (send ? send(doc, requestType, request) : throwError(NO_ADDRESS_ERROR)))
+                switchMap(send => (send ? send(rootURI, requestType, request) : throwError(NO_ADDRESS_ERROR)))
             )
             .toPromise()
     }
@@ -232,15 +349,7 @@ export function activateUsingWebSockets(): void {
     // error is not getting propagated, but despite 30 minutes of
     // debugging I can't figure out why.
     const sendDocPositionRequest = (doc: sourcegraph.TextDocument, pos: sourcegraph.Position, ty: any): Promise<any> =>
-        sendRequest(doc, ty, {
-            textDocument: {
-                uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-            },
-            position: {
-                line: pos.line,
-                character: pos.character,
-            },
-        })
+        sendRequest(rootURIFromDoc(doc), ty, positionParams(doc, pos))
 
     sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
         provideHover: async (doc, pos) => {
@@ -258,10 +367,17 @@ export function activateUsingWebSockets(): void {
         },
     })
 
+    // sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+    //     provideReferences: async (doc, pos) => {
+    //         const response = await sendDocPositionRequest(doc, pos, lsp.ReferencesRequest.type)
+    //         return convert.references({ currentDocURI: doc.uri, references: response })
+    //     },
+    // })
+
     sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
         provideReferences: async (doc, pos) => {
-            const response = await sendDocPositionRequest(doc, pos, lsp.ReferencesRequest.type)
-            return convert.references({ currentDocURI: doc.uri, references: response })
+            const response = await xrefs(doc, pos, sendRequest)
+            return convert.xreferences({ references: response })
         },
     })
 
