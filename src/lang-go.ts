@@ -242,6 +242,9 @@ interface SearchResponse {
     errors: string[]
 }
 
+/**
+ * A promisified version of {@link xrefs}.
+ */
 async function promisexrefs({
     doc,
     pos,
@@ -256,8 +259,11 @@ async function promisexrefs({
         .then(x => [].concat.apply([], x))
 }
 
-async function searchImporters(path: string): Promise<string[]> {
-    const query = `\t"${path}"`
+/**
+ * Returns an array of repositories that import the given import path.
+ */
+async function repositoriesThatImport(importPath: string): Promise<string[]> {
+    const query = `\t"${importPath}"`
     const data = (await queryGraphQL(
         `
 query FindDependents($query: String!) {
@@ -288,6 +294,16 @@ query FindDependents($query: String!) {
     return data.search.results.results.filter(r => r.repository).map(r => r.repository.name)
 }
 
+/**
+ * Finds external references to the symbol at the given position in a 3 step
+ * process:
+ *
+ * - Call xdefinition to get the symbol name and package
+ * - Run a search for files that import the symbol's package, and aggregate the
+ *   set of matching repositories
+ * - Loop through each repository, create a new connection to the language
+ *   server, and call xreferences
+ */
 function xrefs({
     doc,
     pos,
@@ -313,7 +329,7 @@ function xrefs({
             return Promise.reject()
         }
         const definition = definitions[0]
-        const repos = new Set(await searchImporters(definition.symbol.package))
+        const repos = new Set(await repositoriesThatImport(definition.symbol.package))
         // Assumes the import path is the same as the repo name - not always true!
         repos.delete(definition.symbol.package)
         return Array.from(repos).map(repo => ({ repo, definition }))
@@ -344,7 +360,7 @@ function xrefs({
     )
 }
 
-function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): any {
+function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): lsp.TextDocumentPositionParams {
     return {
         textDocument: {
             uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
@@ -444,6 +460,8 @@ export function activateUsingWebSockets(): void {
         })
     }
 
+    // TODO implement streaming external references in the Sourcegraph extension
+    // API then uncomment this.
     // sourcegraph.languages.registerExternalReferenceProvider([{ pattern: '*.go' }], {
     //     provideExternalReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
     //         xrefs({ doc, pos, sendRequest }).pipe(map(response => convert.xreferences({ references: response }))),
