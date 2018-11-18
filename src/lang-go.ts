@@ -23,6 +23,7 @@ import {
 } from 'rxjs'
 import {
     concat,
+    concatMap,
     distinct,
     distinctUntilChanged,
     flatMap,
@@ -162,18 +163,20 @@ async function connectAndInitialize(address: string, root: URL): Promise<rpc.Mes
     return connection
 }
 
-type SendRequest = (rootURI: URL, requestType: any, request: any) => Promise<any>
+interface SendRequestParams {
+    rootURI: URL
+    requestType: any
+    request: any
+    useCache: boolean
+}
+
+type SendRequest = (params: SendRequestParams) => Promise<any>
 
 function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
     const url = new URL(doc.uri)
     url.hash = ''
     return url
 }
-
-// data T
-// mkT : (a -> b) -> T
-// get : a -> T -> b
-// clear : T -> ()
 
 /**
  * Creates a function of type SendRequest that can be used to send LSP
@@ -203,8 +206,16 @@ function mkSendRequest(address: string): Observable<SendRequest> {
         }
     }
 
-    const sendRequest: SendRequest = async (rootURI, requestType, request) =>
-        await (await connectionFor(rootURI)).sendRequest(requestType, request)
+    const sendRequest: SendRequest = async ({ rootURI, requestType, request, useCache }) => {
+        if (useCache) {
+            return await (await connectionFor(rootURI)).sendRequest(requestType, request)
+        } else {
+            const connection = await connectAndInitialize(address, rootURI)
+            const response = await connection.sendRequest(requestType, request)
+            connection.dispose()
+            return response
+        }
+    }
 
     return Observable.create((observer: Observer<SendRequest>) => {
         observer.next(sendRequest)
@@ -234,16 +245,21 @@ interface SearchResponse {
     errors: string[]
 }
 
-async function xrefs(
-    doc: sourcegraph.TextDocument,
-    pos: sourcegraph.Position,
+async function xrefs({
+    doc,
+    pos,
+    sendRequest,
+}: {
+    doc: sourcegraph.TextDocument
+    pos: sourcegraph.Position
     sendRequest: SendRequest
-): Promise<(lspext.Xreference & { currentDocURI: string })[]> {
-    const response = (await sendRequest(
-        rootURIFromDoc(doc),
-        new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-        positionParams(doc, pos)
-    )) as lspext.Xdefinition[] | null
+}): Promise<(lspext.Xreference & { currentDocURI: string })[]> {
+    const response = (await sendRequest({
+        rootURI: rootURIFromDoc(doc),
+        requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+        request: positionParams(doc, pos),
+        useCache: true,
+    })) as lspext.Xdefinition[] | null
     if (!response) {
         console.error('No response to xdefinition')
         return Promise.reject()
@@ -286,19 +302,24 @@ query FindDependents($query: String!) {
     repos.delete(definition.symbol.package)
     return from(repos)
         .pipe(
-            flatMap(async repo => {
-                const rootURI = `git://${repo}?master`
-                // TODO limit the number of connections to the language server (LRU?)
-                const response = (await sendRequest(
-                    new URL(rootURI),
-                    new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
-                    {
+            concatMap(async repo => {
+                const rootURI = new URL(`git://${repo}?master`)
+                // Instead of calling the function parameter `sendRequest`
+                // (which caches connections), this creates a new connection and
+                // immediately disposes it because each xreferences request here
+                // has a different rootURI (enforced by `new Set` above),
+                // rendering caching useless.
+                const response = (await sendRequest({
+                    rootURI,
+                    requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                    request: {
                         query: definition.symbol,
                         limit: 50,
-                    } as { query: lspext.LSPSymbol; limit: number }
-                )) as lspext.Xreference[]
+                    } as { query: lspext.LSPSymbol; limit: number },
+                    useCache: false,
+                })) as lspext.Xreference[]
 
-                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI }))
+                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
             }),
             toArray()
         )
@@ -334,11 +355,11 @@ export function activateUsingWebSockets(): void {
         shareReplay(1)
     )
 
-    function sendRequest(rootURI: URL, requestType: any, request: any): Promise<any> {
+    function sendRequest(params: SendRequestParams): Promise<any> {
         return sendRequestObservable
             .pipe(
                 take(1),
-                switchMap(send => (send ? send(rootURI, requestType, request) : throwError(NO_ADDRESS_ERROR)))
+                switchMap(send => (send ? send(params) : throwError(NO_ADDRESS_ERROR)))
             )
             .toPromise()
     }
@@ -348,42 +369,65 @@ export function activateUsingWebSockets(): void {
     // indefinitely. @felix, could you take a look? I'm guessing the
     // error is not getting propagated, but despite 30 minutes of
     // debugging I can't figure out why.
-    const sendDocPositionRequest = (doc: sourcegraph.TextDocument, pos: sourcegraph.Position, ty: any): Promise<any> =>
-        sendRequest(rootURIFromDoc(doc), ty, positionParams(doc, pos))
+    const sendDocPositionRequest = ({
+        doc,
+        pos,
+        ty,
+        useCache,
+    }: {
+        doc: sourcegraph.TextDocument
+        pos: sourcegraph.Position
+        ty: any
+        useCache: boolean
+    }): Promise<any> =>
+        sendRequest({
+            rootURI: rootURIFromDoc(doc),
+            requestType: ty,
+            request: positionParams(doc, pos),
+            useCache,
+        })
 
     sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
         provideHover: async (doc, pos) => {
-            const response = await sendDocPositionRequest(doc, pos, lsp.HoverRequest.type)
+            const response = await sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true })
             return convert.hover(response)
         },
     })
 
     sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
         provideDefinition: async (doc, pos) => {
-            const response = await sendDocPositionRequest(doc, pos, new lsp.RequestType<any, any, any, void>(
-                'textDocument/xdefinition'
-            ) as any)
+            const response = await sendDocPositionRequest({
+                doc,
+                pos,
+                ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+                useCache: true,
+            })
             return convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })
+        },
+    })
+
+    sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+        provideReferences: async (doc, pos) => {
+            const response = await sendDocPositionRequest({ doc, pos, ty: lsp.ReferencesRequest.type, useCache: true })
+            return convert.references({ currentDocURI: doc.uri, references: response })
         },
     })
 
     // sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
     //     provideReferences: async (doc, pos) => {
-    //         const response = await sendDocPositionRequest(doc, pos, lsp.ReferencesRequest.type)
-    //         return convert.references({ currentDocURI: doc.uri, references: response })
+    //         const response = await xrefs({ doc, pos, sendRequest })
+    //         return convert.xreferences({ references: response })
     //     },
     // })
 
-    sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-        provideReferences: async (doc, pos) => {
-            const response = await xrefs(doc, pos, sendRequest)
-            return convert.xreferences({ references: response })
-        },
-    })
-
     sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
         provideImplementation: async (doc, pos) => {
-            const response = await sendDocPositionRequest(doc, pos, lsp.ImplementationRequest.type)
+            const response = await sendDocPositionRequest({
+                doc,
+                pos,
+                ty: lsp.ImplementationRequest.type,
+                useCache: true,
+            })
             return convert.references({ currentDocURI: doc.uri, references: response })
         },
     })
