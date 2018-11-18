@@ -256,20 +256,6 @@ async function promisexrefs({
         .then(x => [].concat.apply([], x))
 }
 
-interface GoDocDotOrgImportersResponse {
-    results: { path: string }[]
-}
-
-async function goDocDotOrgImporters(path: string): Promise<string[]> {
-    const response = (await ajax({ url: `https://api.godoc.org/importers/${path}`, responseType: 'json' }).toPromise())
-        .response as GoDocDotOrgImportersResponse
-    if (!response || !response.results || !Array.isArray(response.results)) {
-        throw new Error('Invalid response from godoc.org:' + response)
-    } else {
-        return response.results.map(result => result.path)
-    }
-}
-
 async function searchImporters(path: string): Promise<string[]> {
     const query = `\t"${path}"`
     const data = (await queryGraphQL(
@@ -311,36 +297,32 @@ function xrefs({
     pos: sourcegraph.Position
     sendRequest: SendRequest
 }): Observable<(lspext.Xreference & { currentDocURI: string })[]> {
-    const bleh = from(
-        (async () => {
-            const response = (await sendRequest({
-                rootURI: rootURIFromDoc(doc),
-                requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-                request: positionParams(doc, pos),
-                useCache: true,
-            })) as lspext.Xdefinition[] | null
-            if (!response) {
-                console.error('No response to xdefinition')
-                return Promise.reject()
-            }
-            if (response.length === 0) {
-                console.error('No definitions')
-                return Promise.reject()
-            }
-            const definition = response[0]
-            console.log('lel', sourcegraph.configuration.get<Settings>().get('lang-go.useGoDocDotOrg'))
-            const filter = sourcegraph.configuration.get<Settings>().get('lang-go.useGoDocDotOrg')
-                ? goDocDotOrgImporters
-                : searchImporters
-            const repos = new Set(await filter(definition.symbol.package))
-            // Assumes the import path is the same as the repo name - not always true!
-            repos.delete(definition.symbol.package)
-            return { repos, definition }
-        })()
-    )
-    return from(bleh).pipe(
-        concatMap(({ repos, definition }) => Array.from(repos).map(repo => ({ repo, definition }))),
+    const candidates = (async () => {
+        const definitions = (await sendRequest({
+            rootURI: rootURIFromDoc(doc),
+            requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+            request: positionParams(doc, pos),
+            useCache: true,
+        })) as lspext.Xdefinition[] | null
+        if (!definitions) {
+            console.error('No response to xdefinition')
+            return Promise.reject()
+        }
+        if (definitions.length === 0) {
+            console.error('No definitions')
+            return Promise.reject()
+        }
+        const definition = definitions[0]
+        const repos = new Set(await searchImporters(definition.symbol.package))
+        // Assumes the import path is the same as the repo name - not always true!
+        repos.delete(definition.symbol.package)
+        return Array.from(repos).map(repo => ({ repo, definition }))
+    })()
+
+    return from(candidates).pipe(
+        concatMap(candidates => candidates),
         concatMap(async ({ repo, definition }) => {
+            // Assumes master is the default branch - not always true!
             const rootURI = new URL(`git://${repo}?master`)
             // Instead of calling the function parameter `sendRequest`
             // (which caches connections), this creates a new connection and
