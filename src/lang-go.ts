@@ -1,5 +1,6 @@
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import LRUCache from 'lru-cache'
+import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
 import { Location, Position, Range } from 'sourcegraph'
 import * as rpc from 'vscode-jsonrpc'
@@ -255,6 +256,52 @@ async function promisexrefs({
         .then(x => [].concat.apply([], x))
 }
 
+interface GoDocDotOrgImportersResponse {
+    results: { path: string }[]
+}
+
+async function goDocDotOrgImporters(path: string): Promise<string[]> {
+    const response = (await ajax({ url: `https://api.godoc.org/importers/${path}`, responseType: 'json' }).toPromise())
+        .response as GoDocDotOrgImportersResponse
+    if (!response || !response.results || !Array.isArray(response.results)) {
+        throw new Error('Invalid response from godoc.org:' + response)
+    } else {
+        return response.results.map(result => result.path)
+    }
+}
+
+async function searchImporters(path: string): Promise<string[]> {
+    const query = `\t"${path}"`
+    const data = (await queryGraphQL(
+        `
+query FindDependents($query: String!) {
+  search(query: $query) {
+    results {
+      results {
+        ... on FileMatch {
+          repository {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+	`,
+        { query }
+    )) as SearchResponse
+    if (
+        !data ||
+        !data.search ||
+        !data.search.results ||
+        !data.search.results.results ||
+        !Array.isArray(data.search.results.results)
+    ) {
+        throw new Error('No search results - this should not happen.')
+    }
+    return data.search.results.results.filter(r => r.repository).map(r => r.repository.name)
+}
+
 function xrefs({
     doc,
     pos,
@@ -281,35 +328,11 @@ function xrefs({
                 return Promise.reject()
             }
             const definition = response[0]
-            const query = `\t"${definition.symbol.package}"`
-            const data = (await queryGraphQL(
-                `
-query FindDependents($query: String!) {
-  search(query: $query) {
-    results {
-      results {
-        ... on FileMatch {
-          repository {
-            name
-          }
-        }
-      }
-    }
-  }
-}
-	`,
-                { query }
-            )) as SearchResponse
-            if (
-                !data ||
-                !data.search ||
-                !data.search.results ||
-                !data.search.results.results ||
-                !Array.isArray(data.search.results.results)
-            ) {
-                throw new Error('No search results - this should not happen.')
-            }
-            const repos = new Set(data.search.results.results.filter(r => r.repository).map(r => r.repository.name))
+            console.log('lel', sourcegraph.configuration.get<Settings>().get('lang-go.useGoDocDotOrg'))
+            const filter = sourcegraph.configuration.get<Settings>().get('lang-go.useGoDocDotOrg')
+                ? goDocDotOrgImporters
+                : searchImporters
+            const repos = new Set(await filter(definition.symbol.package))
             // Assumes the import path is the same as the repo name - not always true!
             repos.delete(definition.symbol.package)
             return { repos, definition }
