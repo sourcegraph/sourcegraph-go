@@ -245,7 +245,7 @@ interface SearchResponse {
     errors: string[]
 }
 
-async function xrefs({
+async function promisexrefs({
     doc,
     pos,
     sendRequest,
@@ -254,24 +254,40 @@ async function xrefs({
     pos: sourcegraph.Position
     sendRequest: SendRequest
 }): Promise<(lspext.Xreference & { currentDocURI: string })[]> {
-    const response = (await sendRequest({
-        rootURI: rootURIFromDoc(doc),
-        requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-        request: positionParams(doc, pos),
-        useCache: true,
-    })) as lspext.Xdefinition[] | null
-    if (!response) {
-        console.error('No response to xdefinition')
-        return Promise.reject()
-    }
-    if (response.length === 0) {
-        console.error('No definitions')
-        return Promise.reject()
-    }
-    const definition = response[0]
-    const query = `\t"${definition.symbol.package}"`
-    const data = (await queryGraphQL(
-        `
+    return xrefs({ doc, pos, sendRequest })
+        .toPromise()
+        .then(x => [].concat.apply([], x))
+}
+
+function xrefs({
+    doc,
+    pos,
+    sendRequest,
+}: {
+    doc: sourcegraph.TextDocument
+    pos: sourcegraph.Position
+    sendRequest: SendRequest
+}): Observable<(lspext.Xreference & { currentDocURI: string })[]> {
+    const bleh = from(
+        (async () => {
+            const response = (await sendRequest({
+                rootURI: rootURIFromDoc(doc),
+                requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+                request: positionParams(doc, pos),
+                useCache: true,
+            })) as lspext.Xdefinition[] | null
+            if (!response) {
+                console.error('No response to xdefinition')
+                return Promise.reject()
+            }
+            if (response.length === 0) {
+                console.error('No definitions')
+                return Promise.reject()
+            }
+            const definition = response[0]
+            const query = `\t"${definition.symbol.package}"`
+            const data = (await queryGraphQL(
+                `
 query FindDependents($query: String!) {
   search(query: $query) {
     results {
@@ -286,45 +302,45 @@ query FindDependents($query: String!) {
   }
 }
 	`,
-        { query }
-    )) as SearchResponse
-    if (
-        !data ||
-        !data.search ||
-        !data.search.results ||
-        !data.search.results.results ||
-        !Array.isArray(data.search.results.results)
-    ) {
-        throw new Error('No search results - this should not happen.')
-    }
-    const repos = new Set(data.search.results.results.filter(r => r.repository).map(r => r.repository.name))
-    // Assumes the import path is the same as the repo name - not always true!
-    repos.delete(definition.symbol.package)
-    return from(repos)
-        .pipe(
-            concatMap(async repo => {
-                const rootURI = new URL(`git://${repo}?master`)
-                // Instead of calling the function parameter `sendRequest`
-                // (which caches connections), this creates a new connection and
-                // immediately disposes it because each xreferences request here
-                // has a different rootURI (enforced by `new Set` above),
-                // rendering caching useless.
-                const response = (await sendRequest({
-                    rootURI,
-                    requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
-                    request: {
-                        query: definition.symbol,
-                        limit: 50,
-                    } as { query: lspext.LSPSymbol; limit: number },
-                    useCache: false,
-                })) as lspext.Xreference[]
+                { query }
+            )) as SearchResponse
+            if (
+                !data ||
+                !data.search ||
+                !data.search.results ||
+                !data.search.results.results ||
+                !Array.isArray(data.search.results.results)
+            ) {
+                throw new Error('No search results - this should not happen.')
+            }
+            const repos = new Set(data.search.results.results.filter(r => r.repository).map(r => r.repository.name))
+            // Assumes the import path is the same as the repo name - not always true!
+            repos.delete(definition.symbol.package)
+            return { repos, definition }
+        })()
+    )
+    return from(bleh).pipe(
+        concatMap(({ repos, definition }) => Array.from(repos).map(repo => ({ repo, definition }))),
+        concatMap(async ({ repo, definition }) => {
+            const rootURI = new URL(`git://${repo}?master`)
+            // Instead of calling the function parameter `sendRequest`
+            // (which caches connections), this creates a new connection and
+            // immediately disposes it because each xreferences request here
+            // has a different rootURI (enforced by `new Set` above),
+            // rendering caching useless.
+            const response = (await sendRequest({
+                rootURI,
+                requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                request: {
+                    query: definition.symbol,
+                    limit: 50,
+                } as { query: lspext.LSPSymbol; limit: number },
+                useCache: false,
+            })) as lspext.Xreference[]
 
-                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
-            }),
-            toArray()
-        )
-        .toPromise()
-        .then(x => [].concat.apply([], x))
+            return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
+        })
+    )
 }
 
 function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): any {
@@ -413,11 +429,16 @@ export function activateUsingWebSockets(): void {
         },
     })
 
-    // sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-    //     provideReferences: async (doc, pos) => {
-    //         const response = await xrefs({ doc, pos, sendRequest })
-    //         return convert.xreferences({ references: response })
-    //     },
+    sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+        provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+            const response = await promisexrefs({ doc, pos, sendRequest })
+            return convert.xreferences({ references: response })
+        },
+    })
+
+    // sourcegraph.languages.registerExternalReferenceProvider([{ pattern: '*.go' }], {
+    //     provideExternalReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+    //         xrefs({ doc, pos, sendRequest }).pipe(map(response => convert.xreferences({ references: response }))),
     // })
 
     sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
