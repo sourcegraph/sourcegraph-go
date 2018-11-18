@@ -78,7 +78,7 @@ async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
 // Undefined means the current user is anonymous.
 let accessTokenPromise: Promise<string | undefined>
 export async function getOrTryToCreateAccessToken(): Promise<string | undefined> {
-    const accessToken = sourcegraph.configuration.get<Settings>().get('lang-go.accessToken') as string | undefined
+    const accessToken = sourcegraph.configuration.get<Settings>().get('go.accessToken') as string | undefined
     if (accessToken) {
         return accessToken
     }
@@ -110,10 +110,10 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
                     }
                 }
             `,
-            { user: currentUserId, scopes: ['user:all'], note: 'lang-go' }
+            { user: currentUserId, scopes: ['user:all'], note: 'go' }
         )
         const token: string = result.createAccessToken.token
-        await sourcegraph.configuration.get<Settings>().update('lang-go.accessToken', token)
+        await sourcegraph.configuration.get<Settings>().update('go.accessToken', token)
         return token
     }
 }
@@ -329,7 +329,7 @@ function xrefs({
             return Promise.reject()
         }
         const definition = definitions[0]
-        const limit = sourcegraph.configuration.get<Settings>().get('lang-go.maxExternalReferenceRepos') || 50
+        const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 50
         const repos = new Set((await repositoriesThatImport(definition.symbol.package)).slice(0, limit))
         // Assumes the import path is the same as the repo name - not always true!
         repos.delete(definition.symbol.package)
@@ -379,10 +379,10 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 export function activateUsingWebSockets(): void {
     const langserverAddress: BehaviorSubject<string | undefined> = new BehaviorSubject<string | undefined>(undefined)
     sourcegraph.configuration.subscribe(() => {
-        langserverAddress.next(sourcegraph.configuration.get<Settings>().get('lang-go.address'))
+        langserverAddress.next(sourcegraph.configuration.get<Settings>().get('go.serverUrl'))
     })
 
-    const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'lang-go.address' as keyof Settings}": "wss://example.com" to your settings.`
+    const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'go.address' as keyof Settings}": "wss://example.com" to your settings.`
 
     const sendRequestObservable = langserverAddress.pipe(
         switchMap(address => (address ? mkSendRequest(address) : of(undefined))),
@@ -447,10 +447,10 @@ export function activateUsingWebSockets(): void {
         },
     })
 
-    if (sourcegraph.configuration.get<Settings>().get('lang-go.externalReferences')) {
+    if (sourcegraph.configuration.get<Settings>().get('go.externalReferences')) {
         console.log(
             'Registering a second reference provider for external references because',
-            'lang-go.externalReferences' as keyof Settings,
+            'go.externalReferences' as keyof Settings,
             'is truthy.'
         )
         sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
@@ -497,7 +497,7 @@ export function activateUsingLSPProxy(): void {
 
 export function activate(): void {
     function afterActivate(): void {
-        const address = sourcegraph.configuration.get<Settings>().get('lang-go.address')
+        const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
             console.log('Detected langserver address', address, 'using WebSockets to communicate with it.')
             activateUsingWebSockets()
@@ -506,7 +506,7 @@ export function activate(): void {
             // with Go code intelligence have spun up their own language server
             // (post Sourcegraph 3).
             console.log(
-                `Did not detect a langserver address in the setting ${'lang-go.address' as keyof Settings}, falling back to using the LSP gateway.`
+                `Did not detect a langserver address in the setting ${'go.address' as keyof Settings}, falling back to using the LSP gateway.`
             )
             activateUsingLSPProxy()
         }
