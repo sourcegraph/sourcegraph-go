@@ -329,7 +329,8 @@ function xrefs({
             return Promise.reject()
         }
         const definition = definitions[0]
-        const repos = new Set(await repositoriesThatImport(definition.symbol.package))
+        const limit = sourcegraph.configuration.get<Settings>().get('lang-go.maxExternalReferenceRepos') || 50
+        const repos = new Set((await repositoriesThatImport(definition.symbol.package)).slice(0, limit))
         // Assumes the import path is the same as the repo name - not always true!
         repos.delete(definition.symbol.package)
         return Array.from(repos).map(repo => ({ repo, definition }))
