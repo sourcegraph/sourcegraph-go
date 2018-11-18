@@ -429,12 +429,20 @@ export function activateUsingWebSockets(): void {
         },
     })
 
-    sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-        provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-            const response = await promisexrefs({ doc, pos, sendRequest })
-            return convert.xreferences({ references: response })
-        },
-    })
+    const EXTERNAL_REFERENCES_SETTING = 'go.external-references'
+    if (sourcegraph.configuration.get().get(EXTERNAL_REFERENCES_SETTING)) {
+        console.log(
+            'Registering a second reference provider for external references because',
+            EXTERNAL_REFERENCES_SETTING,
+            'is truthy.'
+        )
+        sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+            provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+                const response = await promisexrefs({ doc, pos, sendRequest })
+                return convert.xreferences({ references: response })
+            },
+        })
+    }
 
     // sourcegraph.languages.registerExternalReferenceProvider([{ pattern: '*.go' }], {
     //     provideExternalReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
