@@ -492,5 +492,5 @@ export function activate(): void {
             activateUsingLSPProxy()
         }
     }
-    setTimeout(afterActivate, 0)
+    setTimeout(afterActivate, 100)
 }
