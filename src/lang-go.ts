@@ -37,11 +37,7 @@ import {
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
 import gql from 'tagged-template-noop'
-import { LANGSERVER_ADDRESS_SETTING, Settings } from './settings'
-
-// The key in settings where this extension looks to find the access token for
-// the current user.
-const ACCESS_TOKEN_SETTING = 'go.accessToken'
+import { Settings } from './settings'
 
 /**
  * Returns a URL to Sourcegraph's raw API, given a repo, rev, and optional
@@ -81,7 +77,7 @@ async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
 // Undefined means the current user is anonymous.
 let accessTokenPromise: Promise<string | undefined>
 export async function getOrTryToCreateAccessToken(): Promise<string | undefined> {
-    const accessToken = sourcegraph.configuration.get().get(ACCESS_TOKEN_SETTING) as string | undefined
+    const accessToken = sourcegraph.configuration.get<Settings>().get('lang-go.accessToken') as string | undefined
     if (accessToken) {
         return accessToken
     }
@@ -116,7 +112,7 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
             { user: currentUserId, scopes: ['user:all'], note: 'lang-go' }
         )
         const token: string = result.createAccessToken.token
-        await sourcegraph.configuration.get().update(ACCESS_TOKEN_SETTING, token)
+        await sourcegraph.configuration.get<Settings>().update('lang-go.accessToken', token)
         return token
     }
 }
@@ -361,10 +357,10 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 export function activateUsingWebSockets(): void {
     const langserverAddress: BehaviorSubject<string | undefined> = new BehaviorSubject<string | undefined>(undefined)
     sourcegraph.configuration.subscribe(() => {
-        langserverAddress.next(sourcegraph.configuration.get<Settings>().get(LANGSERVER_ADDRESS_SETTING))
+        langserverAddress.next(sourcegraph.configuration.get<Settings>().get('lang-go.address'))
     })
 
-    const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${LANGSERVER_ADDRESS_SETTING}": "wss://example.com" to your settings.`
+    const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'lang-go.address' as keyof Settings}": "wss://example.com" to your settings.`
 
     const sendRequestObservable = langserverAddress.pipe(
         switchMap(address => (address ? mkSendRequest(address) : of(undefined))),
@@ -429,11 +425,10 @@ export function activateUsingWebSockets(): void {
         },
     })
 
-    const EXTERNAL_REFERENCES_SETTING = 'go.external-references'
-    if (sourcegraph.configuration.get().get(EXTERNAL_REFERENCES_SETTING)) {
+    if (sourcegraph.configuration.get<Settings>().get('lang-go.externalReferences')) {
         console.log(
             'Registering a second reference provider for external references because',
-            EXTERNAL_REFERENCES_SETTING,
+            'lang-go.externalReferences' as keyof Settings,
             'is truthy.'
         )
         sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
@@ -478,7 +473,7 @@ export function activateUsingLSPProxy(): void {
 
 export function activate(): void {
     function afterActivate(): void {
-        const address = sourcegraph.configuration.get<Settings>().get(LANGSERVER_ADDRESS_SETTING)
+        const address = sourcegraph.configuration.get<Settings>().get('lang-go.address')
         if (address) {
             console.log('Detected langserver address', address, 'using WebSockets to communicate with it.')
             activateUsingWebSockets()
@@ -487,7 +482,7 @@ export function activate(): void {
             // with Go code intelligence have spun up their own language server
             // (post Sourcegraph 3).
             console.log(
-                `Did not detect a langserver address in the setting ${LANGSERVER_ADDRESS_SETTING}, falling back to using the LSP gateway.`
+                `Did not detect a langserver address in the setting ${'lang-go.address' as keyof Settings}, falling back to using the LSP gateway.`
             )
             activateUsingLSPProxy()
         }
