@@ -1,4 +1,4 @@
-# ⚠️ WIP Go extension ⚠️
+# Go extension
 
 This extension can provide Go code intelligence in 2 ways:
 
