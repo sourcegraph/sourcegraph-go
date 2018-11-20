@@ -16,12 +16,14 @@ For private Sourcegraph instances:
 - Make sure the extension is enabled: https://sourcegraph.example.com/extensions?query=go
 - Run the server component (see [Deploying the server](#deploying-the-server))
 
-## ⚠️ WIP ⚠️ Deploying the server
+## Deploying the server
+
+⚠️ Currently, the language server must be deployed in the same cluster as the Sourcegraph frontend because it has code dependencies on gitserver (for backcompat) which will be eliminated once the buildserver code is moved to go-langserver. See the [tracking issue](https://github.com/sourcegraph/sourcegraph/issues/958).
 
 Locally with Docker:
 
 ```
-docker run --rm -p 7777:7777 sourcegraph/xlang-go:23745_2018-11-16_484f19d
+docker run --rm -p 7777:7777 -e SOURCEGRAPH_FRONTEND sourcegraph/xlang-go:23745_2018-11-16_484f19d
 ```
 
 On Kubernetes:
@@ -38,7 +40,7 @@ metadata:
   name: lang-go
   namespace: prod
 spec:
-  loadBalancerIP: your.static.ip.addr
+  loadBalancerIP: your.static.ip.address
   ports:
   - name: debug
     port: 6060
@@ -79,7 +81,7 @@ spec:
         - -mode=websocket
         - -addr=:7777
         env:
-        # Necessary until the buildserver code is moved to go-langserver
+        # ⚠️ Necessary until the buildserver code is moved to go-langserver
         - name: CONFIG_FILE_HASH
           value: 028ee65ade4ca84a16c28f4f91bfc0769d4ce248bc7a6e8a8bc7078e848bf20f
         - name: LIGHTSTEP_ACCESS_TOKEN
@@ -88,7 +90,7 @@ spec:
           value: "true"
         - name: LIGHTSTEP_PROJECT
           value: sourcegraph-prod
-        # Necessary until the buildserver code is moved to go-langserver
+        # ⚠️ Necessary until the buildserver code is moved to go-langserver
         - name: SOURCEGRAPH_CONFIG_FILE
           value: /etc/sourcegraph/config.json
         # TLS is optional
@@ -131,13 +133,13 @@ spec:
             cpu: "1"
             memory: 10G
         volumeMounts:
-        # Necessary until the buildserver code is moved to go-langserver
+        # ⚠️ Necessary until the buildserver code is moved to go-langserver
         - mountPath: /etc/sourcegraph
           name: sg-config
         - mountPath: /mnt/cache
           name: cache-ssd
       volumes:
-        # Necessary until the buildserver code is moved to go-langserver
+        # ⚠️ Necessary until the buildserver code is moved to go-langserver
       - configMap:
           defaultMode: 464
           name: config-file
@@ -172,6 +174,14 @@ export interface FullSettings {
      * references for a symbol (defaults to 50).
      */
     'go.maxExternalReferenceRepos': number
+    /**
+     * When set, will cause this extension to use to use gddo's (Go Doc Dot Org) API
+     * (https://github.com/golang/gddo) to find packages that import a given
+     * package (used in finding external references). This cannot be set to
+     * `https://godoc.org` because gddo does not set CORS headers. You'll
+     * need a proxy to get around this.
+     */
+    'go.gddoURL': string
 }
 ```
 
