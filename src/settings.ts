@@ -26,7 +26,7 @@ export interface FullSettings {
      * need a proxy such as https://github.com/sourcegraph/godocdotorg-proxy to
      * get around this.
      */
-    'go.goDocDotOrgURL': string
+    'go.gddoURL': string
 }
 
 export type Settings = Partial<FullSettings>

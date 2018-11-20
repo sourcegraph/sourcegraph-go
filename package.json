@@ -31,7 +31,7 @@
           "description": "The maximum number of repositories to look in when searching for external references for a symbol (defaults to 50).",
           "type": "number"
         },
-        "go.goDocDotOrgURL": {
+        "go.gddoURL": {
           "description": "The address to Go Doc Dot Org or a proxy that speaks the same API (only used on Sourcegraph.com).",
           "type": "string"
         }

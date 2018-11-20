@@ -242,15 +242,15 @@ interface SearchResponse {
     errors: string[]
 }
 
-interface GoDocDotOrgImportersResponse {
+interface GDDOImportersResponse {
     results: { path: string }[]
 }
 
-async function repositoriesThatImportViaGoDocDotOrg(goDocDotOrgURL: string, importPath: string): Promise<Set<string>> {
-    const importersURL = new URL(goDocDotOrgURL)
+async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string): Promise<Set<string>> {
+    const importersURL = new URL(gddoURL)
     importersURL.pathname = 'importers/' + importPath
     const response = (await ajax({ url: importersURL.href, responseType: 'json' }).toPromise())
-        .response as GoDocDotOrgImportersResponse
+        .response as GDDOImportersResponse
     if (!response || !response.results || !Array.isArray(response.results)) {
         throw new Error('Invalid response from godoc.org:' + response)
     } else {
@@ -353,9 +353,9 @@ function xrefs({
         }
         const definition = definitions[0]
         const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 50
-        const goDocDotOrgURL = sourcegraph.configuration.get<Settings>().get('go.goDocDotOrgURL')
-        const repositoriesThatImport = goDocDotOrgURL
-            ? (importPath: string) => repositoriesThatImportViaGoDocDotOrg(goDocDotOrgURL, importPath)
+        const gddoURL = sourcegraph.configuration.get<Settings>().get('go.gddoURL')
+        const repositoriesThatImport = gddoURL
+            ? (importPath: string) => repositoriesThatImportViaGDDO(gddoURL, importPath)
             : repositoriesThatImportViaSearch
         const repos = new Set(Array.from(await repositoriesThatImport(definition.symbol.package)).slice(0, limit))
         // Assumes the import path is the same as the repo name - not always true!
