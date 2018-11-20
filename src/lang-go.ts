@@ -60,11 +60,10 @@ function constructZipURL({
     token: string | undefined
 }): string {
     const zipURL = new URL(sourcegraph.internal.sourcegraphURL.toString())
-    zipURL.pathname = repoName + '@' + revision + '/-/raw'
-    if (token) {
-        zipURL.username = token
-    }
-    return zipURL.href
+    // URL.pathname is different on Chrome vs Safari, so don't rely on it. Instead, constr
+    return (
+        zipURL.protocol + '//' + (token ? token + '@' : '') + zipURL.host + '/' + repoName + '@' + revision + '/-/raw'
+    )
 }
 
 async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
@@ -147,7 +146,7 @@ async function connectAndInitialize(address: string, root: URL): Promise<rpc.Mes
             rootPath: '/',
             initializationOptions: {
                 zipURL: constructZipURL({
-                    repoName: root.pathname.replace(/^\/+/, ''),
+                    repoName: pathname(root.href).replace(/^\/+/, ''),
                     revision: root.search.substr(1),
                     token: await getOrTryToCreateAccessToken(),
                 }),
@@ -512,12 +511,19 @@ export function activateUsingWebSockets(): void {
     })
 }
 
+function pathname(url: string): string {
+    let pathname = url
+    pathname = pathname.slice('git://'.length)
+    pathname = pathname.slice(0, pathname.indexOf('?'))
+    return pathname
+}
+
 export function activateUsingLSPProxy(): void {
     langserverHTTP.activateWith({
         provideLSPResults: async (method, doc, pos) => {
             const docURL = new URL(doc.uri)
             const zipURL = constructZipURL({
-                repoName: docURL.pathname.replace(/^\/+/, ''),
+                repoName: pathname(docURL.href).replace(/^\/+/, ''),
                 revision: docURL.search.substr(1),
                 token: await getOrTryToCreateAccessToken(),
             })
