@@ -20,13 +20,13 @@ For private Sourcegraph instances:
 
 ⚠️ Currently, the language server must be deployed in the same cluster as the Sourcegraph frontend because it has code dependencies on gitserver (for backcompat) which will be eliminated once the buildserver code is moved to go-langserver. See the [tracking issue](https://github.com/sourcegraph/sourcegraph/issues/958).
 
-Locally with Docker:
+(untested!) Locally with Docker (expects a sibling container `sourcegraph-frontend-internal`):
 
 ```
-docker run --rm -p 7777:7777 -e SOURCEGRAPH_FRONTEND sourcegraph/xlang-go:23745_2018-11-16_484f19d
+docker run --rm -p 7777:7777 sourcegraph/xlang-go:23745_2018-11-16_484f19d
 ```
 
-On Kubernetes:
+On Kubernetes (this is running on Sourcegraph.com):
 
 ```yaml
 apiVersion: v1
