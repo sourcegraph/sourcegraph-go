@@ -242,6 +242,29 @@ interface SearchResponse {
     errors: string[]
 }
 
+interface GoDocDotOrgImportersResponse {
+    results: { path: string }[]
+}
+
+async function repositoriesThatImportViaGoDocDotOrg(goDocDotOrgURL: string, importPath: string): Promise<Set<string>> {
+    const importersURL = new URL(goDocDotOrgURL)
+    importersURL.pathname = 'importers/' + importPath
+    const response = (await ajax({ url: importersURL.href, responseType: 'json' }).toPromise())
+        .response as GoDocDotOrgImportersResponse
+    if (!response || !response.results || !Array.isArray(response.results)) {
+        throw new Error('Invalid response from godoc.org:' + response)
+    } else {
+        return new Set(
+            response.results.map(result => {
+                function modifyComponents(f: (components: string[]) => string[], path: string): string {
+                    return f(path.split('/')).join('/')
+                }
+                return modifyComponents(components => components.slice(0, 3), result.path)
+            })
+        )
+    }
+}
+
 /**
  * A promisified version of {@link xrefs}.
  */
@@ -262,7 +285,7 @@ async function promisexrefs({
 /**
  * Returns an array of repositories that import the given import path.
  */
-async function repositoriesThatImport(importPath: string): Promise<string[]> {
+async function repositoriesThatImportViaSearch(importPath: string): Promise<Set<string>> {
     const query = `\t"${importPath}"`
     const data = (await queryGraphQL(
         `
@@ -291,7 +314,7 @@ query FindDependents($query: String!) {
     ) {
         throw new Error('No search results - this should not happen.')
     }
-    return data.search.results.results.filter(r => r.repository).map(r => r.repository.name)
+    return new Set(data.search.results.results.filter(r => r.repository).map(r => r.repository.name))
 }
 
 /**
@@ -330,7 +353,11 @@ function xrefs({
         }
         const definition = definitions[0]
         const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 50
-        const repos = new Set((await repositoriesThatImport(definition.symbol.package)).slice(0, limit))
+        const goDocDotOrgURL = sourcegraph.configuration.get<Settings>().get('go.goDocDotOrgURL')
+        const repositoriesThatImport = goDocDotOrgURL
+            ? (importPath: string) => repositoriesThatImportViaGoDocDotOrg(goDocDotOrgURL, importPath)
+            : repositoriesThatImportViaSearch
+        const repos = new Set(Array.from(await repositoriesThatImport(definition.symbol.package)).slice(0, limit))
         // Assumes the import path is the same as the repo name - not always true!
         repos.delete(definition.symbol.package)
         return Array.from(repos).map(repo => ({ repo, definition }))
