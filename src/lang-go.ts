@@ -259,6 +259,10 @@ async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string
                 function modifyComponents(f: (components: string[]) => string[], path: string): string {
                     return f(path.split('/')).join('/')
                 }
+                // Converts import paths to repositories by stripping everything
+                // after the third path component. This is not very accurate,
+                // and breaks when the repository is not a prefix of the import
+                // path.
                 return modifyComponents(components => components.slice(0, 3), result.path)
             })
         )
