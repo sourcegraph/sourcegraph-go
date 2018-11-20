@@ -19,12 +19,11 @@ export interface FullSettings {
      */
     'go.maxExternalReferenceRepos': number
     /**
-     * When set, will cause this extension to use to use godoc.org's API
+     * When set, will cause this extension to use to use gddo's (Go Doc Dot Org) API
      * (https://github.com/golang/gddo) to find packages that import a given
      * package (used in finding external references). This cannot be set to
-     * `https://godoc.org` because godoc.org does not set CORS headers. You'll
-     * need a proxy such as https://github.com/sourcegraph/godocdotorg-proxy to
-     * get around this.
+     * `https://godoc.org` because gddo does not set CORS headers. You'll
+     * need a proxy to get around this.
      */
     'go.gddoURL': string
 }
