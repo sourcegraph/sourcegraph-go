@@ -12,7 +12,31 @@
       "editor/title": [],
       "commandPalette": []
     },
-    "configuration": {}
+    "configuration": {
+      "properties": {
+        "go.serverUrl": {
+          "description": "The WebSocket language server to connect to",
+          "type": "string",
+          "format": "url"
+        },
+        "go.accessToken": {
+          "description": "The access token for the language server to use to fetch files from the Sourcegraph API. The extension will create this token and save it in your settings automatically.",
+          "type": "string"
+        },
+        "go.externalReferences": {
+          "description": "Whether or not a second references provider for external references will be registered (defaults to false).",
+          "type": "boolean"
+        },
+        "go.maxExternalReferenceRepos": {
+          "description": "The maximum number of repositories to look in when searching for external references for a symbol (defaults to 50).",
+          "type": "number"
+        },
+        "go.goDocDotOrgURL": {
+          "description": "The address to Go Doc Dot Org or a proxy that speaks the same API (only used on Sourcegraph.com).",
+          "type": "string"
+        }
+      }
+    }
   },
   "version": "0.0.0-DEVELOPMENT",
   "license": "MIT",
