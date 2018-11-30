@@ -4394,7 +4394,7 @@ rxjs-tslint-rules@^4.2.0:
     tslib "^1.8.0"
     tsutils "^3.0.0"
 
-rxjs@^6.3.2, rxjs@^6.3.3:
+rxjs@^6.3.3:
   version "6.3.3"
   resolved "https://registry.yarnpkg.com/rxjs/-/rxjs-6.3.3.tgz#3c6a7fa420e844a81390fb1158a9ec614f4bad55"
   integrity sha512-JTWmoY9tWCs7zvIk/CvRjhjGaOd+OVBM987mxFo+OW66cGpdKjZcpmc74ES1sB//7Kl/PAe8+wEakuhG4pcgOw==
@@ -4635,13 +4635,10 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   dependencies:
     vscode-languageserver-types "^3.12.0"
 
-sourcegraph@^18.4.2:
-  version "18.4.2"
-  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-18.4.2.tgz#617fb6a6cad0d95bd0994917f50ec9b65e5439ae"
-  integrity sha512-XI5RMd9e/rn5qxS2xSGjDsJHMk7ESeAP1ivRNwcv3el6kjlBEs68zDjHRQEgvWatDjxq0lqpiKUf8KETIXXuRA==
-  dependencies:
-    minimatch "^3.0.4"
-    rxjs "^6.3.2"
+sourcegraph@^19.2.0:
+  version "19.2.0"
+  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-19.2.0.tgz#bcb6bc14ec756981e36f616cff55d8e34169b9c8"
+  integrity sha512-mGoCuJngYCT2DOiHLY9/JQrg2Me73dpgtLUlCYOTZjhYg8g0B4XRmde1RLIX+Geb5WM1/0d5IlyV1gVfCe5aYw==
 
 split-string@^3.0.1, split-string@^3.0.2:
   version "3.1.0"

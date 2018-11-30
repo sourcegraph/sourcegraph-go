@@ -29,6 +29,8 @@ import {
     distinctUntilChanged,
     flatMap,
     map,
+    mergeMap,
+    scan,
     share,
     shareReplay,
     switchMap,
@@ -37,8 +39,13 @@ import {
 } from 'rxjs/operators'
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
+import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
+
+// If we can rid ourselves of file:// URIs, this type won't be necessary and we
+// can use lspext.Xreference directly.
+type XRef = lspext.Xreference & { currentDocURI: string }
 
 /**
  * Returns a URL to Sourcegraph's raw API, given a repo, rev, and optional
@@ -120,10 +127,7 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
 async function connectAndInitialize(address: string, root: URL): Promise<rpc.MessageConnection> {
     const connection = (await new Promise((resolve, reject) => {
         const webSocket = new WebSocket(address)
-        const conn = rpc.createMessageConnection(
-            new wsrpc.WebSocketMessageReader(wsrpc.toSocket(webSocket)),
-            new wsrpc.WebSocketMessageWriter(wsrpc.toSocket(webSocket))
-        )
+        const conn = createWebSocketConnection(wsrpc.toSocket(webSocket), new ConsoleLogger())
         webSocket.addEventListener('open', () => resolve(conn))
         webSocket.addEventListener('error', reject)
     })) as rpc.MessageConnection
@@ -281,6 +285,7 @@ async function promisexrefs({
     sendRequest: SendRequest
 }): Promise<(lspext.Xreference & { currentDocURI: string })[]> {
     return xrefs({ doc, pos, sendRequest })
+        .pipe(toArray())
         .toPromise()
         .then(x => [].concat.apply([], x))
 }
@@ -338,7 +343,7 @@ function xrefs({
     doc: sourcegraph.TextDocument
     pos: sourcegraph.Position
     sendRequest: SendRequest
-}): Observable<(lspext.Xreference & { currentDocURI: string })[]> {
+}): Observable<lspext.Xreference & { currentDocURI: string }> {
     const candidates = (async () => {
         const definitions = (await sendRequest({
             rootURI: rootURIFromDoc(doc),
@@ -355,7 +360,7 @@ function xrefs({
             return Promise.reject()
         }
         const definition = definitions[0]
-        const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 50
+        const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 20
         const gddoURL = sourcegraph.configuration.get<Settings>().get('go.gddoURL')
         const repositoriesThatImport = gddoURL
             ? (importPath: string) => repositoriesThatImportViaGDDO(gddoURL, importPath)
@@ -368,26 +373,29 @@ function xrefs({
 
     return from(candidates).pipe(
         concatMap(candidates => candidates),
-        concatMap(async ({ repo, definition }) => {
-            // Assumes master is the default branch - not always true!
-            const rootURI = new URL(`git://${repo}?master`)
-            // Instead of calling the function parameter `sendRequest`
-            // (which caches connections), this creates a new connection and
-            // immediately disposes it because each xreferences request here
-            // has a different rootURI (enforced by `new Set` above),
-            // rendering caching useless.
-            const response = (await sendRequest({
-                rootURI,
-                requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
-                request: {
-                    query: definition.symbol,
-                    limit: 50,
-                } as { query: lspext.LSPSymbol; limit: number },
-                useCache: false,
-            })) as lspext.Xreference[]
+        mergeMap(
+            async ({ repo, definition }) => {
+                // Assumes master is the default branch - not always true!
+                const rootURI = new URL(`git://${repo}?master`)
+                // This creates a new connection and immediately disposes it because
+                // each xreferences request here has a different rootURI (enforced
+                // by `new Set` above), rendering caching useless.
+                const response = (await sendRequest({
+                    rootURI,
+                    requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                    request: {
+                        query: definition.symbol,
+                        limit: 20,
+                    } as { query: lspext.LSPSymbol; limit: number },
+                    useCache: false,
+                })) as lspext.Xreference[]
 
-            return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
-        })
+                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
+            },
+            undefined,
+            10 // 10 concurrent connections
+        ),
+        concatMap(references => references)
     )
 }
 
@@ -484,10 +492,11 @@ export function activateUsingWebSockets(): void {
             'is truthy.'
         )
         sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-            provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await promisexrefs({ doc, pos, sendRequest })
-                return convert.xreferences({ references: response })
-            },
+            provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                xrefs({ doc, pos, sendRequest }).pipe(
+                    scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                    map(response => convert.xreferences({ references: response }))
+                ),
         })
     }
 
