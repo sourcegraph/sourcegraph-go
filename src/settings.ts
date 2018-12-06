@@ -9,10 +9,10 @@ export interface FullSettings {
      */
     'go.accessToken': string
     /**
-     * Whether or not a second references provider for external references will be
-     * registered (defaults to false).
+     * Whether or not to return external references (from other repositories)
+     * along with local references.
      */
-    'go.externalReferences': boolean
+    'go.showExternalReferences': boolean
     /**
      * The maximum number of repositories to look in when searching for external
      * references for a symbol (defaults to 50).

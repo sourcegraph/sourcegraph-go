@@ -7,10 +7,31 @@
     "onLanguage:go"
   ],
   "contributes": {
-    "actions": [],
+    "actions": [
+      {
+        "id": "externalReferences.toggle",
+        "command": "externalReferences.toggle",
+        "title": "${config.go.showExternalReferences && \"Hide references from other repositories\" || \"Show references from other repositories\"}",
+        "command": "updateConfiguration",
+        "commandArguments": [
+          [
+            "go.showExternalReferences"
+          ],
+          "${!config.go.showExternalReferences}",
+          null,
+          "json"
+        ],
+        "actionItem": {
+          "label": "${config.go.showExternalReferences && \"Hide references from other repositories\" || \"Show references from other repositories\"}"
+        }
+      }
+    ],
     "menus": {
-      "editor/title": [],
-      "commandPalette": []
+      "panel/toolbar": [
+        {
+          "action": "externalReferences.toggle"
+        }
+      ]
     },
     "configuration": {
       "properties": {

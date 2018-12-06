@@ -25,6 +25,7 @@ import {
 import {
     concat,
     concatMap,
+    delay,
     distinct,
     distinctUntilChanged,
     flatMap,
@@ -36,6 +37,7 @@ import {
     switchMap,
     take,
     toArray,
+    finalize,
 } from 'rxjs/operators'
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
@@ -415,10 +417,11 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
  * Uses WebSockets to communicate with a language server.
  */
 export function activateUsingWebSockets(): void {
-    const langserverAddress: BehaviorSubject<string | undefined> = new BehaviorSubject<string | undefined>(undefined)
+    const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     sourcegraph.configuration.subscribe(() => {
-        langserverAddress.next(sourcegraph.configuration.get<Settings>().get('go.serverUrl'))
+        settings.next(sourcegraph.configuration.get<Settings>().value)
     })
+    const langserverAddress = settings.pipe(map(settings => settings['go.serverUrl']))
 
     const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'go.address' as keyof Settings}": "wss://example.com" to your settings.`
 
@@ -485,20 +488,52 @@ export function activateUsingWebSockets(): void {
         },
     })
 
-    if (sourcegraph.configuration.get<Settings>().get('go.externalReferences')) {
-        console.log(
-            'Registering a second reference provider for external references because',
-            'go.externalReferences' as keyof Settings,
-            'is truthy.'
-        )
-        sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-            provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-                xrefs({ doc, pos, sendRequest }).pipe(
-                    scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
-                    map(response => convert.xreferences({ references: response }))
-                ),
-        })
+    // Automatically registers/deregisters a provider based on some setting.
+    function registerWhile({
+        register,
+        p,
+    }: {
+        register: () => sourcegraph.Unsubscribable
+        p: (settings: Settings) => boolean
+    }): sourcegraph.Unsubscribable {
+        let registration: sourcegraph.Unsubscribable | undefined
+        return from(settings)
+            .pipe(
+                map(p),
+                map(enabled => {
+                    console.log('registerWhile enabled', enabled)
+                    if (enabled) {
+                        registration = register()
+                    } else {
+                        if (registration) {
+                            registration.unsubscribe()
+                            registration = undefined
+                        } else {
+                            console.debug('Not unsubscribing provider: no registration found.')
+                        }
+                    }
+                }),
+                finalize(() => {
+                    if (registration) {
+                        registration.unsubscribe()
+                        registration = undefined
+                    }
+                })
+            )
+            .subscribe()
     }
+
+    registerWhile({
+        register: () =>
+            sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+                provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                    xrefs({ doc, pos, sendRequest }).pipe(
+                        scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                        map(response => convert.xreferences({ references: response }))
+                    ),
+            }),
+        p: settings => Boolean(settings['go.showExternalReferences']),
+    })
 
     // TODO implement streaming external references in the Sourcegraph extension
     // API then uncomment this.
