@@ -275,24 +275,6 @@ async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string
 }
 
 /**
- * A promisified version of {@link xrefs}.
- */
-async function promisexrefs({
-    doc,
-    pos,
-    sendRequest,
-}: {
-    doc: sourcegraph.TextDocument
-    pos: sourcegraph.Position
-    sendRequest: SendRequest
-}): Promise<(lspext.Xreference & { currentDocURI: string })[]> {
-    return xrefs({ doc, pos, sendRequest })
-        .pipe(toArray())
-        .toPromise()
-        .then(x => [].concat.apply([], x))
-}
-
-/**
  * Returns an array of repositories that import the given import path.
  */
 async function repositoriesThatImportViaSearch(importPath: string): Promise<Set<string>> {
@@ -377,8 +359,25 @@ function xrefs({
         concatMap(candidates => candidates),
         mergeMap(
             async ({ repo, definition }) => {
-                // Assumes master is the default branch - not always true!
-                const rootURI = new URL(`git://${repo}?master`)
+                const gqlResponse = await queryGraphQL(
+                    `
+                        query($cloneURL: String!) {
+                            repository(cloneURL: $cloneURL) {
+                                name
+                            }
+                        }
+                    `,
+                    { cloneURL: repo }
+                )
+                if (!gqlResponse || !gqlResponse.repository || !gqlResponse.repository.name) {
+                    // We only know how to construct zip URLs for fetching repos
+                    // on Sourcegraph instances. Since this candidate repo is absent from
+                    // the Sourcegraph instance, discard it.
+                    return []
+                }
+                const repoName = gqlResponse.repository.name
+                // Assumes master is the default branch - not always valid!
+                const rootURI = new URL(`git://${repoName}?master`)
                 // This creates a new connection and immediately disposes it because
                 // each xreferences request here has a different rootURI (enforced
                 // by `new Set` above), rendering caching useless.
