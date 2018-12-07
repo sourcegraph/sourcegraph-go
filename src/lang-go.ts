@@ -251,7 +251,7 @@ interface GDDOImportersResponse {
     results: { path: string }[]
 }
 
-async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string): Promise<Set<string>> {
+async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string, limit: number): Promise<Set<string>> {
     const importersURL = new URL(gddoURL)
     importersURL.pathname = 'importers/' + importPath
     const response = (await ajax({ url: importersURL.href, responseType: 'json' }).toPromise())
@@ -259,8 +259,36 @@ async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string
     if (!response || !response.results || !Array.isArray(response.results)) {
         throw new Error('Invalid response from godoc.org:' + response)
     } else {
+        const repoNames: string[] = (await Promise.all(
+            response.results
+                .map(result => result.path)
+                .filter(repo =>
+                    // This helps filter out repos that do not exist on the Sourcegraph.com instance
+                    repo.startsWith('github.com/')
+                )
+                .slice(0, limit)
+                .map(async repo => {
+                    const gqlResponse = await queryGraphQL(
+                        `
+                        query($cloneURL: String!) {
+                            repository(cloneURL: $cloneURL) {
+                                name
+                            }
+                        }
+                    `,
+                        { cloneURL: repo }
+                    )
+                    if (!gqlResponse || !gqlResponse.repository || !gqlResponse.repository.name) {
+                        // We only know how to construct zip URLs for fetching repos
+                        // on Sourcegraph instances. Since this candidate repo is absent from
+                        // the Sourcegraph instance, discard it.
+                        return undefined
+                    }
+                    return gqlResponse.repository.name as string
+                })
+        )).filter((repo): repo is string => !!repo)
         return new Set(
-            response.results.map(result => {
+            repoNames.map(name => {
                 function modifyComponents(f: (components: string[]) => string[], path: string): string {
                     return f(path.split('/')).join('/')
                 }
@@ -268,7 +296,7 @@ async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string
                 // after the third path component. This is not very accurate,
                 // and breaks when the repository is not a prefix of the import
                 // path.
-                return modifyComponents(components => components.slice(0, 3), result.path)
+                return modifyComponents(components => components.slice(0, 3), name)
             })
         )
     }
@@ -277,7 +305,7 @@ async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string
 /**
  * Returns an array of repositories that import the given import path.
  */
-async function repositoriesThatImportViaSearch(importPath: string): Promise<Set<string>> {
+async function repositoriesThatImportViaSearch(importPath: string, limit: number): Promise<Set<string>> {
     const query = `\t"${importPath}"`
     const data = (await queryGraphQL(
         `
@@ -306,7 +334,12 @@ query FindDependents($query: String!) {
     ) {
         throw new Error('No search results - this should not happen.')
     }
-    return new Set(data.search.results.results.filter(r => r.repository).map(r => r.repository.name))
+    return new Set(
+        data.search.results.results
+            .filter(r => r.repository)
+            .map(r => r.repository.name)
+            .slice(0, limit)
+    )
 }
 
 /**
@@ -347,9 +380,9 @@ function xrefs({
         const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 20
         const gddoURL = sourcegraph.configuration.get<Settings>().get('go.gddoURL')
         const repositoriesThatImport = gddoURL
-            ? (importPath: string) => repositoriesThatImportViaGDDO(gddoURL, importPath)
+            ? (importPath: string, limit: number) => repositoriesThatImportViaGDDO(gddoURL, importPath, limit)
             : repositoriesThatImportViaSearch
-        const repos = new Set(Array.from(await repositoriesThatImport(definition.symbol.package)).slice(0, limit))
+        const repos = new Set(Array.from(await repositoriesThatImport(definition.symbol.package, limit)))
         // Assumes the import path is the same as the repo name - not always true!
         repos.delete(definition.symbol.package)
         return Array.from(repos).map(repo => ({ repo, definition }))
@@ -359,25 +392,8 @@ function xrefs({
         concatMap(candidates => candidates),
         mergeMap(
             async ({ repo, definition }) => {
-                const gqlResponse = await queryGraphQL(
-                    `
-                        query($cloneURL: String!) {
-                            repository(cloneURL: $cloneURL) {
-                                name
-                            }
-                        }
-                    `,
-                    { cloneURL: repo }
-                )
-                if (!gqlResponse || !gqlResponse.repository || !gqlResponse.repository.name) {
-                    // We only know how to construct zip URLs for fetching repos
-                    // on Sourcegraph instances. Since this candidate repo is absent from
-                    // the Sourcegraph instance, discard it.
-                    return []
-                }
-                const repoName = gqlResponse.repository.name
                 // Assumes master is the default branch - not always valid!
-                const rootURI = new URL(`git://${repoName}?master`)
+                const rootURI = new URL(`git://${repo}?master`)
                 // This creates a new connection and immediately disposes it because
                 // each xreferences request here has a different rootURI (enforced
                 // by `new Set` above), rendering caching useless.
