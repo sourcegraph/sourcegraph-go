@@ -62,6 +62,10 @@
   "version": "0.0.0-DEVELOPMENT",
   "license": "MIT",
   "main": "dist/lang-go.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sourcegraph/lang-go"
+  },
   "scripts": {
     "tslint": "tslint -p tsconfig.json './src/**/*.ts'",
     "typecheck": "tsc -p tsconfig.json",
