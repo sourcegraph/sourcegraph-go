@@ -525,7 +525,6 @@ export function activateUsingWebSockets(): void {
             .pipe(
                 map(p),
                 map(enabled => {
-                    console.log('registerWhile enabled', enabled)
                     if (enabled) {
                         registration = register()
                     } else {
@@ -604,15 +603,11 @@ export function activate(): void {
     function afterActivate(): void {
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
-            console.log('Detected langserver address', address, 'and using WebSockets to communicate with it.')
             activateUsingWebSockets()
         } else {
             // We can remove the LSP proxy implementation once all customers
             // with Go code intelligence have spun up their own language server
             // (post Sourcegraph 3).
-            console.log(
-                `Did not detect a langserver address in the setting ${'go.serverUrl' as keyof Settings}, falling back to using the LSP gateway.`
-            )
             activateUsingLSPProxy()
         }
     }
