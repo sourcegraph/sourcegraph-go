@@ -1,20 +1,29 @@
 # Go extension
 
-This extension can provide Go code intelligence in 2 ways:
+This extension provides Go code intelligence on Sourcegraph.
 
-- **LSP Proxy**: this extension literally `import`s [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http) (deprecated)
-- **Standalone [go-langserver](https://github.com/sourcegraph/go-langserver)**: connects over WebSockets
+![gif](https://cl.ly/1A0m0L3w2K2g/go.gif)
 
-When `go.serverUrl` is set, this extension will connect to the Go language server at that address over WebSockets.
+## Usage on Sourcegraph.com
 
-## Usage
+It's [enabled by default](https://sourcegraph.com/extensions/chris/lang-go)!
 
-This extension is enabled by default on Sourcegraph.com: https://sourcegraph.com/extensions/chris/lang-go
+## Usage on Sourcegraph 3.x instances
 
-For private Sourcegraph instances:
+- Enable this extension in the extension registry https://sourcegraph.example.com/extensions
+- [Deploy go-langserver](#deploying-the-server)
+- Set `go.serverUrl` to the address of your go-langserver instance
+- Visit a Go file and you should see code intelligence
 
-- Make sure the extension is enabled: https://sourcegraph.example.com/extensions?query=go
-- Run the server component (see [Deploying the server](#deploying-the-server))
+This extension communicates with an instance of the [go-langserver](https://github.com/sourcegraph/go-langserver) over WebSockets.
+
+## Usage on Sourcegraph 2.x instances
+
+- Enable this extension in the extension registry https://sourcegraph.example.com/extensions
+- Enable the Go language server is running (check https://sourcegraph.example.com/site-admin/code-intelligence)
+- Visit a Go file and you should see code intelligence
+
+This extension hits the LSP gateway on the Sourcegraph instance (internally it uses [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http)).
 
 ## Deploying the server
 
@@ -165,10 +174,10 @@ export interface FullSettings {
      */
     'go.accessToken': string
     /**
-     * Whether or not a second references provider for external references will be
-     * registered (defaults to false).
+     * Whether or not to return external references (from other repositories)
+     * along with local references.
      */
-    'go.externalReferences': boolean
+    'go.showExternalReferences': boolean
     /**
      * The maximum number of repositories to look in when searching for external
      * references for a symbol (defaults to 50).
@@ -184,5 +193,3 @@ export interface FullSettings {
     'go.gddoURL': string
 }
 ```
-
-##
