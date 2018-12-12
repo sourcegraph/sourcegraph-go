@@ -79,7 +79,15 @@ function constructZipURL({
     const zipURL = new URL(sourcegraphURL())
     // URL.pathname is different on Chrome vs Safari, so don't rely on it. Instead, constr
     return (
-        zipURL.protocol + '//' + (token ? token + '@' : '') + zipURL.host + '/' + repoName + '@' + revision + '/-/raw'
+        zipURL.protocol +
+        '//' +
+        (token ? token + '@' : '') +
+        zipURL.host +
+        '/' +
+        repoName +
+        '@' +
+        encodeURIComponent(revision) +
+        '/-/raw'
     )
 }
 
