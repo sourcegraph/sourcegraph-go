@@ -268,10 +268,12 @@ interface GDDOImportersResponse {
     results: { path: string }[]
 }
 
-async function repositoriesThatImportViaGDDO(gddoURL: string, importPath: string, limit: number): Promise<Set<string>> {
-    const importersURL = new URL(gddoURL)
-    importersURL.pathname = 'importers/' + importPath
-    const response = (await ajax({ url: importersURL.href, responseType: 'json' }).toPromise())
+async function repositoriesThatImportViaGDDO(
+    buildGDDOURL: (path: string) => string,
+    importPath: string,
+    limit: number
+): Promise<Set<string>> {
+    const response = (await ajax({ url: buildGDDOURL(importPath), responseType: 'json' }).toPromise())
         .response as GDDOImportersResponse
     if (!response || !response.results || !Array.isArray(response.results)) {
         throw new Error('Invalid response from godoc.org:' + response)
@@ -396,8 +398,26 @@ function xrefs({
         const definition = definitions[0]
         const limit = sourcegraph.configuration.get<Settings>().get('go.maxExternalReferenceRepos') || 20
         const gddoURL = sourcegraph.configuration.get<Settings>().get('go.gddoURL')
+        const corsAnywhereURL = sourcegraph.configuration.get<Settings>().get('go.corsAnywhereURL')
+        function composeForward<A, B, C>(f: (a: A) => B, g: (b: B) => C): (a: A) => C {
+            return a => g(f(a))
+        }
+        function identity<A>(a: A): A {
+            return a
+        }
+        function mkBuildGDDOURL(gddoURL: string): (path: string) => string {
+            return composeForward(
+                (path: string): string => {
+                    const importersURL = new URL(gddoURL)
+                    importersURL.pathname = 'importers/' + path
+                    return importersURL.href
+                },
+                corsAnywhereURL ? (url: string): string => corsAnywhereURL + url : (identity as (url: string) => string)
+            )
+        }
         const repositoriesThatImport = gddoURL
-            ? (importPath: string, limit: number) => repositoriesThatImportViaGDDO(gddoURL, importPath, limit)
+            ? (importPath: string, limit: number) =>
+                  repositoriesThatImportViaGDDO(mkBuildGDDOURL(gddoURL), importPath, limit)
             : repositoriesThatImportViaSearch
         const repos = new Set(Array.from(await repositoriesThatImport(definition.symbol.package, limit)))
         // Assumes the import path is the same as the repo name - not always true!

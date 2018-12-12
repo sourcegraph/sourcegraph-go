@@ -19,13 +19,22 @@ export interface FullSettings {
      */
     'go.maxExternalReferenceRepos': number
     /**
-     * When set, will cause this extension to use to use gddo's (Go Doc Dot Org) API
-     * (https://github.com/golang/gddo) to find packages that import a given
-     * package (used in finding external references). This cannot be set to
-     * `https://godoc.org` because gddo does not set CORS headers. You'll
-     * need a proxy to get around this.
+     * When set, will cause this extension to use to use gddo's (Go Doc Dot Org)
+     * API (https://github.com/golang/gddo) to find packages that import a given
+     * package (used in finding external references). For example:
+     * `https://godoc.org`.
      */
     'go.gddoURL': string
+    /**
+     * Address of a cors-anywhere service. This will cause the extension to send
+     * GDDO requests to this service instead of directly to api.godoc.org. For
+     * example:
+     *
+     * https://cors-anywhere.sourcegraph.com/https://api.godoc.org/importers/github.com/sourcegraph/go-lsp
+     *
+     * This would not be necessary if godoc.org set CORS headers.
+     */
+    'go.corsAnywhereURL': string
     /**
      * The URL of the Sourcegraph instance from the perspective of the Go
      * language server. This is useful for development when Sourcegraph is
