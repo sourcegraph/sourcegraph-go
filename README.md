@@ -2,7 +2,7 @@
 
 This extension provides Go code intelligence on Sourcegraph.
 
-![gif](https://cl.ly/1A0m0L3w2K2g/go.gif)
+![image](https://user-images.githubusercontent.com/1387653/49856504-ce281f80-fda4-11e8-933b-f8fc67c98daf.png)
 
 ## Usage on Sourcegraph.com
 
