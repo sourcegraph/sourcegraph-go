@@ -604,7 +604,7 @@ export function activate(): void {
     function afterActivate(): void {
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
-            console.log('Detected langserver address', address, 'using WebSockets to communicate with it.')
+            console.log('Detected langserver address', address, 'and using WebSockets to communicate with it.')
             activateUsingWebSockets()
         } else {
             // We can remove the LSP proxy implementation once all customers
