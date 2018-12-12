@@ -437,8 +437,7 @@ function xrefs({
         concatMap(candidates => candidates),
         mergeMap(
             async ({ repo, definition }) => {
-                // Assumes master is the default branch - not always valid!
-                const rootURI = new URL(`git://${repo}?master`)
+                const rootURI = new URL(`git://${repo}?HEAD`)
                 // This creates a new connection and immediately disposes it because
                 // each xreferences request here has a different rootURI (enforced
                 // by `new Set` above), rendering caching useless.
