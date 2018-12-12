@@ -83,8 +83,11 @@ spec:
     spec:
       containers:
       - args:
+        - go-langserver
         - -mode=websocket
         - -addr=:4389
+        - -usebuildserver
+        - -usebinarypkgcache=false
         env:
         - name: LIGHTSTEP_ACCESS_TOKEN
           value: '???'
