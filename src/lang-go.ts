@@ -75,6 +75,12 @@ function constructZipURL({
     )
 }
 
+// Returns a URL template to the raw API. For example: 'https://%s@localhost:3080/%s@%s/-/raw'
+function zipURLTemplate(token: string | undefined): string | undefined {
+    const url = new URL(sourcegraph.internal.sourcegraphURL.toString())
+    return url.protocol + '//' + (token ? token + '@' : '') + url.host + '/%s@%s/-/raw'
+}
+
 async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
     const { data, errors } = await sourcegraph.commands.executeCommand('queryGraphQL', query, variables)
     if (errors) {
@@ -136,6 +142,8 @@ async function connectAndInitialize(address: string, root: URL): Promise<rpc.Mes
 
     connection.listen()
 
+    const token = await getOrTryToCreateAccessToken()
+
     await connection.sendRequest(
         new lsp.RequestType<
             lsp.InitializeParams & {
@@ -154,8 +162,9 @@ async function connectAndInitialize(address: string, root: URL): Promise<rpc.Mes
                 zipURL: constructZipURL({
                     repoName: pathname(root.href).replace(/^\/+/, ''),
                     revision: root.search.substr(1),
-                    token: await getOrTryToCreateAccessToken(),
+                    token,
                 }),
+                zipURLTemplate: zipURLTemplate(token),
             },
         }
     )
@@ -602,7 +611,7 @@ export function activate(): void {
             // with Go code intelligence have spun up their own language server
             // (post Sourcegraph 3).
             console.log(
-                `Did not detect a langserver address in the setting ${'go.address' as keyof Settings}, falling back to using the LSP gateway.`
+                `Did not detect a langserver address in the setting ${'go.serverUrl' as keyof Settings}, falling back to using the LSP gateway.`
             )
             activateUsingLSPProxy()
         }
