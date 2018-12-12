@@ -26,6 +26,15 @@ export interface FullSettings {
      * need a proxy to get around this.
      */
     'go.gddoURL': string
+    /**
+     * The URL of the Sourcegraph instance from the perspective of the Go
+     * language server. This is useful for development when Sourcegraph is
+     * running on localhost and the Go language server is running in a Docker
+     * container. When developing on macOS, set this to
+     * 'http://host.docker.internal:3080'. See
+     * https://stackoverflow.com/a/43541681/2061958
+     */
+    'go.sourcegraphUrl': string
 }
 
 export type Settings = Partial<FullSettings>

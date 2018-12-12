@@ -49,6 +49,14 @@ import { Settings } from './settings'
 // can use lspext.Xreference directly.
 type XRef = lspext.Xreference & { currentDocURI: string }
 
+// Useful when go-langserver is running in a Docker container.
+function sourcegraphURL(): string {
+    return (
+        (sourcegraph.configuration.get<Settings>().get('go.sourcegraphUrl') as string | undefined) ||
+        sourcegraph.internal.sourcegraphURL.toString()
+    )
+}
+
 /**
  * Returns a URL to Sourcegraph's raw API, given a repo, rev, and optional
  * token. When the token is not provided, the resulting URL will not be
@@ -68,7 +76,7 @@ function constructZipURL({
     revision: string
     token: string | undefined
 }): string {
-    const zipURL = new URL(sourcegraph.internal.sourcegraphURL.toString())
+    const zipURL = new URL(sourcegraphURL())
     // URL.pathname is different on Chrome vs Safari, so don't rely on it. Instead, constr
     return (
         zipURL.protocol + '//' + (token ? token + '@' : '') + zipURL.host + '/' + repoName + '@' + revision + '/-/raw'
@@ -77,7 +85,7 @@ function constructZipURL({
 
 // Returns a URL template to the raw API. For example: 'https://%s@localhost:3080/%s@%s/-/raw'
 function zipURLTemplate(token: string | undefined): string | undefined {
-    const url = new URL(sourcegraph.internal.sourcegraphURL.toString())
+    const url = new URL(sourcegraphURL())
     return url.protocol + '//' + (token ? token + '@' : '') + url.host + '/%s@%s/-/raw'
 }
 
