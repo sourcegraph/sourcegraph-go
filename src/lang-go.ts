@@ -594,13 +594,6 @@ export function activateUsingWebSockets(): void {
         p: settings => Boolean(settings['go.showExternalReferences']),
     })
 
-    // TODO implement streaming external references in the Sourcegraph extension
-    // API then uncomment this.
-    // sourcegraph.languages.registerExternalReferenceProvider([{ pattern: '*.go' }], {
-    //     provideExternalReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-    //         xrefs({ doc, pos, sendRequest }).pipe(map(response => convert.xreferences({ references: response }))),
-    // })
-
     sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
         provideImplementation: async (doc, pos) => {
             const response = await sendDocPositionRequest({
