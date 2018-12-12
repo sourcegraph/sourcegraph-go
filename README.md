@@ -25,17 +25,14 @@ This extension communicates with an instance of the [go-langserver](https://gith
 
 This extension hits the LSP gateway on the Sourcegraph instance (internally it uses [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http)).
 
-## Deploying the server
-
-⚠️ Currently, the language server must be deployed in the same cluster as the Sourcegraph frontend because it has code dependencies on gitserver (for backcompat) which will be eliminated once the buildserver code is moved to go-langserver. See the [tracking issue](https://github.com/sourcegraph/sourcegraph/issues/958).
-
-(untested!) Locally with Docker (expects a sibling container `sourcegraph-frontend-internal`):
+## Deploying the language server in a Docker container
 
 ```
-docker run --rm -p 7777:7777 sourcegraph/xlang-go:23745_2018-11-16_484f19d
+docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
+  go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
 ```
 
-On Kubernetes (this is running on Sourcegraph.com):
+## Deploying the language server on Kubernetes
 
 ```yaml
 apiVersion: v1
@@ -67,8 +64,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   annotations:
-    description: Go code intelligence provided by xlang-go, but supporting TLS and
-      WebSockets.
+    description: Go code intelligence provided by go-langserver
   name: lang-go
   namespace: prod
 spec:
@@ -88,20 +84,14 @@ spec:
       containers:
       - args:
         - -mode=websocket
-        - -addr=:7777
+        - -addr=:4389
         env:
-        # ⚠️ Necessary until the buildserver code is moved to go-langserver
-        - name: CONFIG_FILE_HASH
-          value: 028ee65ade4ca84a16c28f4f91bfc0769d4ce248bc7a6e8a8bc7078e848bf20f
         - name: LIGHTSTEP_ACCESS_TOKEN
           value: '???'
         - name: LIGHTSTEP_INCLUDE_SENSITIVE
           value: "true"
         - name: LIGHTSTEP_PROJECT
           value: sourcegraph-prod
-        # ⚠️ Necessary until the buildserver code is moved to go-langserver
-        - name: SOURCEGRAPH_CONFIG_FILE
-          value: /etc/sourcegraph/config.json
         # TLS is optional
         - name: TLS_CERT
           valueFrom:
@@ -119,7 +109,7 @@ spec:
               fieldPath: metadata.name
         - name: CACHE_DIR
           value: /mnt/cache/$(POD_NAME)
-        image: sourcegraph/xlang-go:latest
+        image: sourcegraph/lang-go:latest
         livenessProbe:
           initialDelaySeconds: 5
           tcpSocket:
@@ -127,13 +117,13 @@ spec:
           timeoutSeconds: 5
         name: lang-go
         ports:
-        - containerPort: 7777
+        - containerPort: 4389
           name: lsp
         - containerPort: 6060
           name: debug
         readinessProbe:
           tcpSocket:
-            port: 7777
+            port: 4389
         resources:
           limits:
             cpu: "8"
@@ -142,17 +132,9 @@ spec:
             cpu: "1"
             memory: 10G
         volumeMounts:
-        # ⚠️ Necessary until the buildserver code is moved to go-langserver
-        - mountPath: /etc/sourcegraph
-          name: sg-config
         - mountPath: /mnt/cache
           name: cache-ssd
       volumes:
-        # ⚠️ Necessary until the buildserver code is moved to go-langserver
-      - configMap:
-          defaultMode: 464
-          name: config-file
-        name: sg-config
       - hostPath:
           path: /mnt/disks/ssd0/pod-tmp
         name: cache-ssd
@@ -193,3 +175,21 @@ export interface FullSettings {
     'go.gddoURL': string
 }
 ```
+
+## Private dependencies
+
+The go-langserver will pick up settings from the `$HOME/.netrc` file when fetching dependencies. For example:
+
+```
+machine codeload.github.com
+login <your username>
+password <your password OR access token>
+```
+
+You can give the go-langserver access to this file by mounting it into the Docker container:
+
+```
+docker run ... -v "$HOME/.netrc":/root/.netrc ...
+```
+
+SSH keys TODO
