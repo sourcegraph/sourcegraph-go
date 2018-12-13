@@ -196,3 +196,15 @@ docker run ... -v "$HOME/.netrc":/root/.netrc ...
 ```
 
 SSH keys TODO
+
+## Scaling out by increasing the replica count
+
+You can run multiple instances of the go-langserver and distribute connections between them in Kubernetes:
+
+```diff
+ spec:
+   minReadySeconds: 10
+-  replicas: 1
++  replicas: 5
+   revisionHistoryLimit: 10
+```
