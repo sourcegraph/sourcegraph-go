@@ -199,7 +199,7 @@ SSH keys TODO
 
 ## Scaling out by increasing the replica count
 
-You can run multiple instances of the go-langserver and distribute connections between them in Kubernetes:
+You can run multiple instances of the go-langserver and distribute connections between them in Kubernetes by setting `spec.replicas` in the deployment YAML:
 
 ```diff
  spec:
