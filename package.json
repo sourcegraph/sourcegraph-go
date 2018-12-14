@@ -2,7 +2,7 @@
   "name": "lang-go",
   "title": "Code intelligence for Go",
   "description": "Provides code intelligence for Go",
-  "publisher": "chris",
+  "publisher": "sourcegraph",
   "activationEvents": [
     "onLanguage:go"
   ],
