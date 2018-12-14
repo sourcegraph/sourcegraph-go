@@ -12,7 +12,8 @@ It's [enabled by default](https://sourcegraph.com/extensions/chris/lang-go)!
 
 - Enable this extension in the extension registry https://sourcegraph.example.com/extensions
 - [Deploy go-langserver](#deploying-the-server)
-- Set `go.serverUrl` to the address of your go-langserver instance
+- Set `go.serverUrl` in your Sourcegraph settings to the address of your go-langserver instance
+- If the address of your Sourcegraph instance in your browser (e.g. `http://localhost:7080`) is different from the address at which go-langserver can access your Sourcegraph instance (e.g. `http://host.docker.internal:7080`, when running on your local machine in Docker), then set `go.sourcegraphUrl` (e.g. to `http://host.docker.internal:7080`).
 - Visit a Go file and you should see code intelligence
 
 This extension communicates with an instance of the [go-langserver](https://github.com/sourcegraph/go-langserver) over WebSockets.
@@ -25,11 +26,19 @@ This extension communicates with an instance of the [go-langserver](https://gith
 
 This extension hits the LSP gateway on the Sourcegraph instance (internally it uses [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http)).
 
-## Deploying the language server in a Docker container
+## Deploying the language server locally in a Docker container
 
 ```
 docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
   go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
+```
+
+You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws):
+
+```
+$ go get -u github.com/hashrocket/ws
+$ ws ws://localhost:4389
+>
 ```
 
 ## Deploying the language server on Kubernetes
