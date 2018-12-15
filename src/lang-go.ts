@@ -605,6 +605,7 @@ export async function activateUsingWebSockets(): Promise<void> {
         return from(settings)
             .pipe(
                 map(p),
+                distinctUntilChanged(),
                 map(enabled => {
                     if (enabled) {
                         registration = register()
