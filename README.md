@@ -6,7 +6,7 @@ This extension provides Go code intelligence on Sourcegraph.
 
 ## Usage on Sourcegraph.com
 
-It's [enabled by default](https://sourcegraph.com/extensions/chris/lang-go)!
+It's [enabled by default](https://sourcegraph.com/extensions/sourcegraph/lang-go)!
 
 ## Usage on Sourcegraph 3.x instances
 
