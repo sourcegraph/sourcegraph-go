@@ -11,7 +11,7 @@ It's [enabled by default](https://sourcegraph.com/extensions/chris/lang-go)!
 ## Usage on Sourcegraph 3.x instances
 
 - Enable this extension in the extension registry https://sourcegraph.example.com/extensions
-- [Deploy go-langserver](#deploying-the-server)
+- Deploy go-langserver locally in Docker or on Kubernetes (see below)
 - Set `go.serverUrl` in your Sourcegraph settings to the address of your go-langserver instance
 - If the address of your Sourcegraph instance in your browser (e.g. `http://localhost:7080`) is different from the address at which go-langserver can access your Sourcegraph instance (e.g. `http://host.docker.internal:7080`, when running on your local machine in Docker), then set `go.sourcegraphUrl` (e.g. to `http://host.docker.internal:7080`).
 - Visit a Go file and you should see code intelligence
