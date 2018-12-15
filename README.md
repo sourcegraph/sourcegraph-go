@@ -190,7 +190,9 @@ export interface FullSettings {
 
 ## Private dependencies
 
-The go-langserver will pick up settings from the `$HOME/.netrc` file when fetching dependencies. For example:
+### Private dependencies via `.netrc`
+
+Make sure your `$HOME/.netrc` contains:
 
 ```
 machine codeload.github.com
@@ -198,13 +200,43 @@ login <your username>
 password <your password OR access token>
 ```
 
-You can give the go-langserver access to this file by mounting it into the Docker container:
+Mount it into the container:
 
 ```
 docker run ... -v "$HOME/.netrc":/root/.netrc ...
 ```
 
-SSH keys TODO
+Verify fetching works:
+
+```
+$ docker exec -ti lang-go sh
+# curl -n https://codeload.github.com/you/your-private-repo/zip/master
+HTTP/1.1 200 OK
+...
+```
+
+### Private dependencies via SSH keys
+
+Make sure your `~/.gitconfig` contains these lines:
+
+```
+[url "git@github.com:"]
+    insteadOf = https://github.com/
+```
+
+Mount that and your SSH keys into the container:
+
+```
+docker run ... -v "$HOME/.gitconfig":/root/.gitconfig -v "$HOME/.ssh":/root/.ssh ...
+```
+
+Verify cloning works:
+
+```
+$ docker exec -ti lang-go sh
+# git clone https://github.com/you/your-private-repo
+Cloning into 'your-private-repo'...
+```
 
 ## Scaling out by increasing the replica count
 
