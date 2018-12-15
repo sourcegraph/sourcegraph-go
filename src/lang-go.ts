@@ -57,6 +57,49 @@ function sourcegraphURL(): string {
     )
 }
 
+interface AccessTokenResponse {
+    currentUser: {
+        accessTokens: {
+            nodes: { note: string }[]
+            pageInfo: {
+                hasNextPage: boolean
+            }
+        }
+    }
+    errors: string[]
+}
+
+async function userHasAccessTokenWithNote(note: string): Promise<boolean> {
+    const response: AccessTokenResponse = await queryGraphQL(`
+    query {
+        currentUser {
+            accessTokens(first: 1000) {
+                nodes {
+                    note
+                },
+                pageInfo {
+                    hasNextPage
+                }
+            }
+        }
+    }
+    `)
+
+    if (
+        !response ||
+        !response.currentUser ||
+        !response.currentUser.accessTokens ||
+        !response.currentUser.accessTokens.nodes ||
+        !Array.isArray(response.currentUser.accessTokens.nodes)
+    ) {
+        throw new Error('No access tokens field in GraphQL response - this should not happen.')
+    }
+    if (response.currentUser.accessTokens.pageInfo && response.currentUser.accessTokens.pageInfo.hasNextPage === true) {
+        throw new Error('You have too many access tokens (over 1000).')
+    }
+    return response.currentUser.accessTokens.nodes.some(token => token.note === note)
+}
+
 /**
  * Returns a URL to Sourcegraph's raw API, given a repo, rev, and optional
  * token. When the token is not provided, the resulting URL will not be
@@ -105,18 +148,18 @@ async function queryGraphQL(query: string, variables: any = {}): Promise<any> {
     return data
 }
 
+const NOTE_FOR_GO_ACCESS_TOKEN = 'go'
+
 // Undefined means the current user is anonymous.
 let accessTokenPromise: Promise<string | undefined>
 export async function getOrTryToCreateAccessToken(): Promise<string | undefined> {
-    const accessToken = sourcegraph.configuration.get<Settings>().get('go.accessToken') as string | undefined
-    if (accessToken) {
-        return accessToken
+    const hasToken = await userHasAccessTokenWithNote(NOTE_FOR_GO_ACCESS_TOKEN)
+    const setting = sourcegraph.configuration.get<Settings>().get('go.accessToken')
+    if (hasToken && setting) {
+        return setting
+    } else {
+        return accessTokenPromise || (accessTokenPromise = tryToCreateAccessToken())
     }
-    if (accessTokenPromise) {
-        return await accessTokenPromise
-    }
-    accessTokenPromise = tryToCreateAccessToken()
-    return await accessTokenPromise
 }
 
 async function tryToCreateAccessToken(): Promise<string | undefined> {
@@ -140,7 +183,7 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
                     }
                 }
             `,
-            { user: currentUserId, scopes: ['user:all'], note: 'go' }
+            { user: currentUserId, scopes: ['user:all'], note: NOTE_FOR_GO_ACCESS_TOKEN }
         )
         const token: string = result.createAccessToken.token
         await sourcegraph.configuration.get<Settings>().update('go.accessToken', token)
@@ -148,7 +191,11 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
     }
 }
 
-async function connectAndInitialize(address: string, root: URL): Promise<rpc.MessageConnection> {
+async function connectAndInitialize(
+    address: string,
+    root: URL,
+    token: string | undefined
+): Promise<rpc.MessageConnection> {
     const connection = (await new Promise((resolve, reject) => {
         const webSocket = new WebSocket(address)
         const conn = createWebSocketConnection(wsrpc.toSocket(webSocket), new ConsoleLogger())
@@ -157,8 +204,6 @@ async function connectAndInitialize(address: string, root: URL): Promise<rpc.Mes
     })) as rpc.MessageConnection
 
     connection.listen()
-
-    const token = await getOrTryToCreateAccessToken()
 
     await connection.sendRequest(
         new lsp.RequestType<
@@ -214,13 +259,13 @@ function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
  * Internally, this maintains a mapping from rootURI to the connection
  * associated with that rootURI, so it supports multiple roots (untested).
  */
-function mkSendRequest(address: string): Observable<SendRequest> {
+function mkSendRequest(address: string, token: string | undefined): Observable<SendRequest> {
     const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
     function connectionFor(root: URL): Promise<rpc.MessageConnection> {
         if (rootURIToConnection[root.href]) {
             return rootURIToConnection[root.href]
         } else {
-            rootURIToConnection[root.href] = connectAndInitialize(address, root)
+            rootURIToConnection[root.href] = connectAndInitialize(address, root, token)
             rootURIToConnection[root.href].then(connection => {
                 connection.onDispose(() => {
                     delete rootURIToConnection[root.href]
@@ -237,7 +282,7 @@ function mkSendRequest(address: string): Observable<SendRequest> {
         if (useCache) {
             return await (await connectionFor(rootURI)).sendRequest(requestType, request)
         } else {
-            const connection = await connectAndInitialize(address, rootURI)
+            const connection = await connectAndInitialize(address, rootURI, token)
             const response = await connection.sendRequest(requestType, request)
             connection.dispose()
             return response
@@ -475,7 +520,8 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export function activateUsingWebSockets(): void {
+export async function activateUsingWebSockets(): Promise<void> {
+    const accessToken = await getOrTryToCreateAccessToken()
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     sourcegraph.configuration.subscribe(() => {
         settings.next(sourcegraph.configuration.get<Settings>().value)
@@ -485,7 +531,7 @@ export function activateUsingWebSockets(): void {
     const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'go.address' as keyof Settings}": "wss://example.com" to your settings.`
 
     const sendRequestObservable = langserverAddress.pipe(
-        switchMap(address => (address ? mkSendRequest(address) : of(undefined))),
+        switchMap(address => (address ? mkSendRequest(address, accessToken) : of(undefined))),
         shareReplay(1)
     )
 
@@ -613,14 +659,15 @@ function pathname(url: string): string {
     return pathname
 }
 
-export function activateUsingLSPProxy(): void {
+export async function activateUsingLSPProxy(): Promise<void> {
+    const accessToken = await getOrTryToCreateAccessToken()
     langserverHTTP.activateWith({
         provideLSPResults: async (method, doc, pos) => {
             const docURL = new URL(doc.uri)
             const zipURL = constructZipURL({
                 repoName: pathname(docURL.href).replace(/^\/+/, ''),
                 revision: docURL.search.substr(1),
-                token: await getOrTryToCreateAccessToken(),
+                token: accessToken,
             })
             return langserverHTTP.provideLSPResults(method, doc, pos, { zipURL })
         },
@@ -628,15 +675,15 @@ export function activateUsingLSPProxy(): void {
 }
 
 export function activate(): void {
-    function afterActivate(): void {
+    async function afterActivate(): Promise<void> {
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
-            activateUsingWebSockets()
+            await activateUsingWebSockets()
         } else {
             // We can remove the LSP proxy implementation once all customers
             // with Go code intelligence have spun up their own language server
             // (post Sourcegraph 3).
-            activateUsingLSPProxy()
+            await activateUsingLSPProxy()
         }
     }
     setTimeout(afterActivate, 100)
