@@ -92,7 +92,7 @@ async function userHasAccessTokenWithNote(note: string): Promise<boolean> {
         !response.currentUser.accessTokens.nodes ||
         !Array.isArray(response.currentUser.accessTokens.nodes)
     ) {
-        throw new Error('No access tokens field in GraphQL response - this should not happen.')
+        return false
     }
     if (response.currentUser.accessTokens.pageInfo && response.currentUser.accessTokens.pageInfo.hasNextPage === true) {
         throw new Error('You have too many access tokens (over 1000).')
