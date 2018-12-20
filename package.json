@@ -6,6 +6,10 @@
   "activationEvents": [
     "onLanguage:go"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sourcegraph/lang-go"
+  },
   "contributes": {
     "actions": [
       {
