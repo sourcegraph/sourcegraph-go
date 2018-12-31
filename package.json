@@ -14,9 +14,8 @@
     "actions": [
       {
         "id": "externalReferences.toggle",
-        "command": "externalReferences.toggle",
-        "title": "${config.go.showExternalReferences && \"Hide references from other repositories\" || \"Show references from other repositories\"}",
         "command": "updateConfiguration",
+        "title": "${config.go.showExternalReferences && \"Hide references from other repositories\" || \"Show references from other repositories\"}",
         "commandArguments": [
           [
             "go.showExternalReferences"
