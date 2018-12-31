@@ -101,5 +101,6 @@ export const hover = (hover: lsp.Hover | null) => {
     return {
         contents: { value: '' },
         __backcompatContents: hover.contents,
+        priority: 100,
     } as sourcegraph.Hover
 }
