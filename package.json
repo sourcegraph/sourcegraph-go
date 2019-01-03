@@ -1,7 +1,6 @@
 {
   "name": "lang-go",
-  "title": "Code intelligence for Go",
-  "description": "Provides code intelligence for Go",
+  "description": "Go code intelligence",
   "publisher": "sourcegraph",
   "activationEvents": [
     "onLanguage:go"
@@ -10,6 +9,8 @@
     "type": "git",
     "url": "https://github.com/sourcegraph/lang-go"
   },
+  "categories": ["Programming languages"],
+  "tags": ["go", "cross-repository", "language-server"],
   "contributes": {
     "actions": [
       {
