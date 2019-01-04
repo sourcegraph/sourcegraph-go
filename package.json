@@ -9,8 +9,14 @@
     "type": "git",
     "url": "https://github.com/sourcegraph/lang-go"
   },
-  "categories": ["Programming languages"],
-  "tags": ["go", "cross-repository", "language-server"],
+  "categories": [
+    "Programming languages"
+  ],
+  "tags": [
+    "go",
+    "cross-repository",
+    "language-server"
+  ],
   "contributes": {
     "actions": [
       {
@@ -102,6 +108,7 @@
     "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3",
     "tagged-template-noop": "^2.1.0",
     "vscode-jsonrpc": "^4.0.0",
+    "vscode-languageserver-protocol": "^3.14.1",
     "vscode-ws-jsonrpc": "^0.0.3",
     "ws": "^6.1.0"
   }
