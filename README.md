@@ -10,11 +10,20 @@ It's [enabled by default](https://sourcegraph.com/extensions/sourcegraph/lang-go
 
 ## Usage on Sourcegraph 3.x instances
 
-- Deploy go-langserver locally in Docker or on Kubernetes (see below)
-- Enable this extension in your extension registry https://sourcegraph.example.com/extensions/sourcegraph/lang-go
-- Set `"go.serverUrl": "ws://localhost:4389"` in https://sourcegraph.example.com/site-admin/global-settings and make sure the port matches either the Docker command or your Kubernetes config
-- If the language server you just deployed cannot access your Sourcegraph instance at the same URL that your browser can (e.g. `http://localhost:7080`), then set `go.sourcegraphUrl` (e.g. to `http://host.docker.internal:7080`)
-- Visit a Go file and you should see code intelligence
+Deploy go-langserver locally in Docker or on Kubernetes (see below).
+
+Enable this extension in your extension registry https://sourcegraph.example.com/extensions/sourcegraph/lang-go
+
+Add these to your Sourcegraph settings in https://sourcegraph.example.com/site-admin/global-settings and make sure the port matches either the Docker command or your Kubernetes config:
+
+```
+  "go.serverUrl": "ws://localhost:4389",
+  "go.sourcegraphUrl": "http://host.docker.internal:7080",
+```
+
+If you're running on Linux, change `go.sourcegraphUrl` to TODO(@chrismwendt) ask @beyang what URL works.
+
+Now visit a Go file and you should see code intelligence!
 
 This extension communicates with an instance of the [go-langserver](https://github.com/sourcegraph/go-langserver) over WebSockets.
 
