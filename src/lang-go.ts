@@ -44,7 +44,6 @@ import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
-import { isEqual } from 'lodash'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -594,19 +593,21 @@ export async function activateUsingWebSockets(): Promise<void> {
         },
     })
 
-    // Automatically registers/deregisters a provider based on some setting.
+    /**
+     * Automatically registers/deregisters a provider based on the given predicate of the settings.
+     */
     function registerWhile({
         register,
-        p,
+        settingsPredicate,
     }: {
         register: () => sourcegraph.Unsubscribable
-        p: (settings: Settings) => boolean
+        settingsPredicate: (settings: Settings) => boolean
     }): sourcegraph.Unsubscribable {
         let registration: sourcegraph.Unsubscribable | undefined
         return from(settings)
             .pipe(
-                map(p),
-                distinctUntilChanged((a, b) => isEqual(a, b)),
+                map(settingsPredicate),
+                distinctUntilChanged(),
                 map(enabled => {
                     if (enabled) {
                         registration = register()
@@ -638,7 +639,7 @@ export async function activateUsingWebSockets(): Promise<void> {
                         map(response => convert.xreferences({ references: response }))
                     ),
             }),
-        p: settings => Boolean(settings['go.showExternalReferences']),
+        settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
     })
 
     sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {

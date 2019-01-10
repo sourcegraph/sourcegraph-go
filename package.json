@@ -91,7 +91,6 @@
     "@sourcegraph/prettierrc": "^2.2.0",
     "@sourcegraph/tsconfig": "^3.0.0",
     "@sourcegraph/tslint-config": "^12.3.1",
-    "@types/lodash": "^4.14.119",
     "@types/lru-cache": "4.1.1",
     "@types/signale": "1.2.0",
     "@types/ws": "6.0.1",
@@ -102,7 +101,6 @@
   },
   "dependencies": {
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
-    "lodash": "^4.17.11",
     "lru-cache": "^4.1.3",
     "rxjs": "^6.3.3",
     "signale": "^1.3.0",
