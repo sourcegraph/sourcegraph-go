@@ -44,7 +44,7 @@ import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
-import * as _ from 'lodash'
+import { isEqual } from 'lodash'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -606,7 +606,7 @@ export async function activateUsingWebSockets(): Promise<void> {
         return from(settings)
             .pipe(
                 map(p),
-                distinctUntilChanged((a, b) => _.isEqual(a, b)),
+                distinctUntilChanged((a, b) => isEqual(a, b)),
                 map(enabled => {
                     if (enabled) {
                         registration = register()
