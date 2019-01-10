@@ -21,7 +21,11 @@ Add these to your Sourcegraph settings in https://sourcegraph.example.com/site-a
   "go.sourcegraphUrl": "http://host.docker.internal:7080",
 ```
 
-If you're running on Linux, change `go.sourcegraphUrl` to TODO(@chrismwendt) ask @beyang what URL works.
+If you're running on Linux, change `go.sourcegraphUrl` to the IP given by:
+
+```bash
+ip addr show docker0 | grep -Po 'inet \K[\d.]+'
+```
 
 Now visit a Go file and you should see code intelligence!
 
