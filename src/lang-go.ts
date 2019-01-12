@@ -39,6 +39,7 @@ import {
     toArray,
     finalize,
 } from 'rxjs/operators'
+// tslint:disable-next-line:no-submodule-imports
 import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
@@ -489,6 +490,7 @@ function xrefs({
                 const response = (await sendRequest({
                     rootURI,
                     requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                    // tslint:disable-next-line:no-object-literal-type-assertion
                     request: {
                         query: definition.symbol,
                         limit: 20,
