@@ -251,6 +251,11 @@ function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
     return url
 }
 
+function repoNameFromDoc(doc: sourcegraph.TextDocument): string {
+    const url = new URL(doc.uri)
+    return url.pathname.slice(2)
+}
+
 /**
  * Creates a function of type SendRequest that can be used to send LSP
  * requests to the corresponding language server. This returns an Observable
@@ -474,6 +479,8 @@ function xrefs({
                   repositoriesThatImportViaGDDO(mkBuildGDDOURL(gddoURL), importPath, limit)
             : repositoriesThatImportViaSearch
         const repos = new Set(Array.from(await repositoriesThatImport(definition.symbol.package, limit)))
+        // Skip the current repository because the local references provider will cover it.
+        repos.delete(repoNameFromDoc(doc))
         // Assumes the import path is the same as the repo name - not always true!
         repos.delete(definition.symbol.package)
         return Array.from(repos).map(repo => ({ repo, definition }))
