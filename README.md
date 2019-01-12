@@ -10,9 +10,22 @@ It's [enabled by default](https://sourcegraph.com/extensions/sourcegraph/lang-go
 
 ## Usage on Sourcegraph 3.x instances
 
-Deploy go-langserver locally in Docker or on Kubernetes (see below).
+First, run the Go language server:
 
-Enable this extension in your extension registry https://sourcegraph.example.com/extensions/sourcegraph/lang-go
+```
+docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
+  go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
+```
+
+You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws):
+
+```
+$ go get -u github.com/hashrocket/ws
+$ ws ws://localhost:4389
+>
+```
+
+Enable this extension on your Sourcegraph  https://sourcegraph.example.com/extensions/sourcegraph/lang-go
 
 Add these to your Sourcegraph settings in https://sourcegraph.example.com/site-admin/global-settings and make sure the port matches either the Docker command or your Kubernetes config:
 
@@ -29,8 +42,6 @@ ip addr show docker0 | grep -Po 'inet \K[\d.]+'
 
 Now visit a Go file and you should see code intelligence!
 
-This extension communicates with an instance of the [go-langserver](https://github.com/sourcegraph/go-langserver) over WebSockets.
-
 ## Usage on Sourcegraph 2.x instances
 
 - Enable this extension in the extension registry https://sourcegraph.example.com/extensions
@@ -39,22 +50,9 @@ This extension communicates with an instance of the [go-langserver](https://gith
 
 This extension hits the LSP gateway on the Sourcegraph instance (internally it uses [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http)).
 
-## Deploying the language server locally in a Docker container
-
-```
-docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
-  go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
-```
-
-You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws):
-
-```
-$ go get -u github.com/hashrocket/ws
-$ ws ws://localhost:4389
->
-```
-
 ## Deploying the language server on Kubernetes
+
+Here's a sample Kuberentes configuration:
 
 ```yaml
 apiVersion: v1
@@ -110,6 +108,7 @@ spec:
         - -addr=:4389
         - -usebuildserver
         - -usebinarypkgcache=false
+        - -cachedir=$(CACHE_DIR)
         env:
         - name: LIGHTSTEP_ACCESS_TOKEN
           value: '???'
