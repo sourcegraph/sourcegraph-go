@@ -1,4 +1,4 @@
-# Go extension
+# Code intelligence for Go
 
 This extension provides Go code intelligence on Sourcegraph.
 
