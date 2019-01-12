@@ -4,53 +4,55 @@ This extension provides Go code intelligence on Sourcegraph.
 
 ![image](https://user-images.githubusercontent.com/1387653/49856504-ce281f80-fda4-11e8-933b-f8fc67c98daf.png)
 
-## Usage on Sourcegraph.com
+## How to deploy the server
 
-It's [enabled by default](https://sourcegraph.com/extensions/sourcegraph/lang-go)!
+The extension is configured to talk to a language server deployed somewhere over WebSockets.
+The server is available as a Docker image `sourcegraph/lang-go` from Docker Hub.
 
-## Usage on Sourcegraph 3.x instances
+### Using Docker
 
-First, run the Go language server:
+1. Run the Go language server:
 
-```
-docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
-  go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
-```
+    ```sh
+    docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
+      go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
+    ```
 
-You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws):
+    You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws):
 
-```
-$ go get -u github.com/hashrocket/ws
-$ ws ws://localhost:4389
->
-```
+    ```sh
+    $ go get -u github.com/hashrocket/ws
+    $ ws ws://localhost:4389
+    >
+    ```
 
-Enable this extension on your Sourcegraph  https://sourcegraph.example.com/extensions/sourcegraph/lang-go
+1. Enable this extension on your Sourcegraph  https://sourcegraph.example.com/extensions/sourcegraph/lang-go
 
-Add these to your Sourcegraph settings in https://sourcegraph.example.com/site-admin/global-settings and make sure the port matches either the Docker command or your Kubernetes config:
+1. Add these to your Sourcegraph settings in https://sourcegraph.example.com/site-admin/global-settings and make sure the port matches either the Docker command or your Kubernetes config:
 
-```
-  "go.serverUrl": "ws://localhost:4389",
-  "go.sourcegraphUrl": "http://host.docker.internal:7080",
-```
+    ```sh
+    "go.serverUrl": "ws://localhost:4389",
+    "go.sourcegraphUrl": "http://host.docker.internal:7080",
+    ```
 
-If you're running on Linux, change `go.sourcegraphUrl` to the IP given by:
+    If you're running on Linux, change `go.sourcegraphUrl` to the IP given by:
 
-```bash
-ip addr show docker0 | grep -Po 'inet \K[\d.]+'
-```
+    ```bash
+    ip addr show docker0 | grep -Po 'inet \K[\d.]+'
+    ```
 
 Now visit a Go file and you should see code intelligence!
 
-## Usage on Sourcegraph 2.x instances
+### Authentication proxies and firewalls
 
-- Enable this extension in the extension registry https://sourcegraph.example.com/extensions
-- Enable the Go language server is running (check https://sourcegraph.example.com/site-admin/code-intelligence)
-- Visit a Go file and you should see code intelligence
+Some customers deploy Sourcegraph behind an authentication proxy or firewall. If you do this, we
+recommend deploying the language server behind the proxy so that it can issue requests directly to
+Sourcegraph without going through the proxy. (Otherwise, you will need to configure the language
+server to authenticate through your proxy.) Make sure you set `go.sourcegraphUrl` to the URL
+that the language server should use to reach Sourcegraph, which is likely different from the URL
+that end users use.
 
-This extension hits the LSP gateway on the Sourcegraph instance (internally it uses [langserver-http](https://github.com/sourcegraph/sourcegraph-langserver-http)).
-
-## Deploying the language server on Kubernetes
+## Using Kubernetes
 
 Here's a sample Kuberentes configuration:
 
