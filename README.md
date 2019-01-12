@@ -4,10 +4,11 @@ This extension provides Go code intelligence on Sourcegraph.
 
 ![image](https://user-images.githubusercontent.com/1387653/49856504-ce281f80-fda4-11e8-933b-f8fc67c98daf.png)
 
-## How to deploy the server
+## Usage with private Sourcegraph instances
 
-The extension is configured to talk to a language server deployed somewhere over WebSockets.
-The server is available as a Docker image `sourcegraph/lang-go` from Docker Hub.
+This extension is configured to talk to a language server over WebSockets. If you are running a
+private Sourcegraph instance, you should run your own language server. The server is available as a
+Docker image `sourcegraph/lang-go` from Docker Hub.
 
 ### Using Docker
 
@@ -52,9 +53,9 @@ server to authenticate through your proxy.) Make sure you set `go.sourcegraphUrl
 that the language server should use to reach Sourcegraph, which is likely different from the URL
 that end users use.
 
-## Using Kubernetes
+### Using Kubernetes
 
-Here's a sample Kuberentes configuration:
+Here's a sample Kubernetes configuration:
 
 ```yaml
 apiVersion: v1
@@ -86,7 +87,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   annotations:
-    description: Go code intelligence provided by go-langserver
+    description: Go code intelligence provided by lang-go
   name: lang-go
   namespace: prod
 spec:
