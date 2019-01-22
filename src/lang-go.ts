@@ -624,8 +624,6 @@ export async function activateUsingWebSockets(): Promise<void> {
                         if (registration) {
                             registration.unsubscribe()
                             registration = undefined
-                        } else {
-                            console.debug('Not unsubscribing provider: no registration found.')
                         }
                     }
                 }),
