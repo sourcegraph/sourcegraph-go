@@ -27,7 +27,7 @@ Docker image `sourcegraph/lang-go` from Docker Hub.
     >
     ```
 
-1. Enable this extension on your Sourcegraph  https://sourcegraph.example.com/extensions/sourcegraph/lang-go
+1. Enable this extension on your Sourcegraph  https://sourcegraph.example.com/extensions/sourcegraph/go
 
 1. Add these to your Sourcegraph settings in https://sourcegraph.example.com/site-admin/global-settings and make sure the port matches either the Docker command or your Kubernetes config:
 
