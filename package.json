@@ -1,5 +1,5 @@
 {
-  "name": "lang-go",
+  "name": "go",
   "description": "Go code intelligence",
   "publisher": "sourcegraph",
   "activationEvents": [
@@ -7,7 +7,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/sourcegraph/lang-go"
+    "url": "https://github.com/sourcegraph/sourcegraph-go"
   },
   "categories": [
     "Programming languages"
