@@ -1,3 +1,4 @@
+import { activateOnFileExts } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import LRUCache from 'lru-cache'
 import { ajax } from 'rxjs/ajax'
@@ -669,31 +670,13 @@ function pathname(url: string): string {
     return pathname
 }
 
-export async function activateUsingLSPProxy(): Promise<void> {
-    const accessToken = await getOrTryToCreateAccessToken()
-    langserverHTTP.activateWith({
-        provideLSPResults: async (method, doc, pos) => {
-            const docURL = new URL(doc.uri)
-            const zipURL = constructZipURL({
-                repoName: pathname(docURL.href).replace(/^\/+/, ''),
-                revision: docURL.search.substr(1),
-                token: accessToken,
-            })
-            return langserverHTTP.provideLSPResults(method, doc, pos, { zipURL })
-        },
-    })
-}
-
-export function activate(): void {
+export function activate(ctx: sourcegraph.ExtensionContext): void {
     async function afterActivate(): Promise<void> {
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
             await activateUsingWebSockets()
         } else {
-            // We can remove the LSP proxy implementation once all customers
-            // with Go code intelligence have spun up their own language server
-            // (post Sourcegraph 3).
-            await activateUsingLSPProxy()
+            activateOnFileExts(['go'])(ctx)
         }
     }
     setTimeout(afterActivate, 100)

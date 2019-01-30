@@ -649,6 +649,13 @@
   dependencies:
     esquery "^1.0.1"
 
+"@sourcegraph/basic-code-intel@1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-1.0.0.tgz#3e315936f4cd3132e5b837b944f6dcdad0b47a7e"
+  integrity sha512-fGYsUzNDx8kA4qbhg147RyaSsU4AX+kz2ywkBMNFqZ/7CsCFSrt7RAyaHB5Lv0vnlybi0x/rtS++CDGMkdW0FA==
+  dependencies:
+    rxjs "^6.3.3"
+
 "@sourcegraph/prettierrc@^2.2.0":
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/@sourcegraph/prettierrc/-/prettierrc-2.2.0.tgz#af4a6fcd465b0a39a07ffbd8f2d3414d01e603e8"
