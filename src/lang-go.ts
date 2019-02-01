@@ -1,4 +1,4 @@
-import { activateOnFileExts } from '@sourcegraph/basic-code-intel'
+import { activateBasicCodeIntel } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import LRUCache from 'lru-cache'
 import { ajax } from 'rxjs/ajax'
@@ -676,7 +676,10 @@ export function activate(ctx: sourcegraph.ExtensionContext): void {
         if (address) {
             await activateUsingWebSockets()
         } else {
-            activateOnFileExts(['go'])(ctx)
+            activateBasicCodeIntel({
+                fileExts: ['go'],
+                definitionPatterns: ['\\b%s(,\\s\\w+)*\\s\\:=', '(var|const)\\s%s\\s'],
+            })(ctx)
         }
     }
     setTimeout(afterActivate, 100)
