@@ -679,6 +679,9 @@ export function activate(ctx: sourcegraph.ExtensionContext): void {
             activateBasicCodeIntel({
                 fileExts: ['go'],
                 definitionPatterns: ['\\b%s(,\\s\\w+)*\\s\\:=', '(var|const)\\s%s\\s'],
+                commentStyle: {
+                    lineRegex: /\/\/\s*(.*)/,
+                },
             })(ctx)
         }
     }
