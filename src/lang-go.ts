@@ -677,10 +677,11 @@ export function activate(ctx: sourcegraph.ExtensionContext): void {
             await activateUsingWebSockets()
         } else {
             activateBasicCodeIntel({
+                languageID: 'go',
                 fileExts: ['go'],
                 definitionPatterns: ['\\b%s(,\\s\\w+)*\\s\\:=', '(var|const)\\s%s\\s'],
                 commentStyle: {
-                    lineRegex: /\/\/\s*(.*)/,
+                    lineRegex: /\/\/\s?/,
                 },
             })(ctx)
         }
