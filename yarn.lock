@@ -649,10 +649,10 @@
   dependencies:
     esquery "^1.0.1"
 
-"@sourcegraph/basic-code-intel@6.0.0":
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-6.0.0.tgz#d85370469b5e11794c9363ec440343d8b9d8e93d"
-  integrity sha512-TIDnfv9VdiBXk3/47h0IuNR3Vsco7/hqh2+hVhRJdr7nyztFMGqGwYmBOouwCJXrJ5pnDCQ3uVD8iDYxPXoghw==
+"@sourcegraph/basic-code-intel@6.0.1":
+  version "6.0.1"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-6.0.1.tgz#bdad1642be049a2d628faba451a945a0a5d76bfe"
+  integrity sha512-xslyg1aEvxXTi/+HZyamQilj2opnOHIOnVFRE3pKMU/6n22yeK/He0DguKrKSUs9jkawwu2ouLt4qY9TQ0Ow5Q==
   dependencies:
     lodash "^4.17.11"
     rxjs "^6.3.3"
