@@ -1,47 +1,24 @@
 import { activateBasicCodeIntel } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
-import LRUCache from 'lru-cache'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
-import { Location, Position, Range } from 'sourcegraph'
 import * as rpc from 'vscode-jsonrpc'
 import * as lsp from 'vscode-languageserver-protocol'
 import * as convert from './convert-lsp-to-sea'
 import * as lspext from './lspext'
 
+import { BehaviorSubject, from, Observable, Observer, of, throwError } from 'rxjs'
 import {
-    BehaviorSubject,
-    combineLatest,
-    EMPTY,
-    from,
-    Observable,
-    Observer,
-    of,
-    Subject,
-    Subscribable,
-    Subscription,
-    throwError,
-    Unsubscribable,
-} from 'rxjs'
-import {
-    concat,
     concatMap,
-    delay,
-    distinct,
     distinctUntilChanged,
-    flatMap,
     map,
     mergeMap,
     scan,
-    share,
     shareReplay,
     switchMap,
     take,
-    toArray,
     finalize,
 } from 'rxjs/operators'
-// tslint:disable-next-line:no-submodule-imports
-import * as langserverHTTP from 'sourcegraph-langserver-http/src/extension'
 
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
