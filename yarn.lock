@@ -4546,6 +4546,11 @@ sourcegraph@^20.1.0:
   resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-20.1.0.tgz#9ba6c0e57107b1fe66c4299db32c7780094398cc"
   integrity sha512-zbpDsFtExHQ04eJvQ2IIoi1rWrJU7Uhw4wXoy7V9Xpj/qMgbNnV4dev1kDg24y6F9vXM+jSONRrVcg/EO/UMag==
 
+sourcegraph@^21.0.0:
+  version "21.0.0"
+  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-21.0.0.tgz#b84ef37a0655574759d5f4a7ee5c1da388111580"
+  integrity sha512-PcsvCepo3vORtzKgcjeaXMQcL+BQj2OO/Lkq7S0/k5bexefn6Wf5WrFD3SXJFqPVOWJM1hPG1tw1ME9Z5Gne3Q==
+
 split-string@^3.0.1, split-string@^3.0.2:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/split-string/-/split-string-3.1.0.tgz#7cb09dda3a86585705c64b39a6466038682e8fe2"
