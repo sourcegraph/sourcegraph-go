@@ -1,0 +1,19 @@
+
+language: node_js
+node_js: '10'
+cache:
+  yarn: true
+env:
+  global:
+    - FORCE_COLOR=1
+jobs:
+  include:
+    - stage: build
+      install: skip
+      script:
+        - yarn
+        - yarn run prettier-check
+        - yarn run typecheck
+        - yarn run build
+stages:
+  - build
