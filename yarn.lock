@@ -4546,11 +4546,6 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   dependencies:
     vscode-languageserver-types "^3.12.0"
 
-sourcegraph@^20.1.0:
-  version "20.2.0"
-  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-20.2.0.tgz#36a99639a5ce32271db340b4df0e4ccb2e4cc20d"
-  integrity sha512-KG3tQ9PNEza5JW2cihalfMBtgMwjtXKaQpO6blE5fLxvD4odrfkCDhb5pW5Ptym2DX/jorbDev1elDc/FYMImw==
-
 sourcegraph@^22.0.0:
   version "22.0.0"
   resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-22.0.0.tgz#b259929c31bf367f5160056698a881dc26eb36bd"
