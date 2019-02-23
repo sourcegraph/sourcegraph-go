@@ -555,14 +555,14 @@ export async function activateUsingWebSockets(): Promise<void> {
         })
 
     sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
-        provideHover: async (doc, pos) => {
+        provideHover: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
             const response = await sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true })
             return convert.hover(response)
         },
     })
 
     sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
-        provideDefinition: async (doc, pos) => {
+        provideDefinition: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
             const response = await sendDocPositionRequest({
                 doc,
                 pos,
@@ -574,7 +574,7 @@ export async function activateUsingWebSockets(): Promise<void> {
     })
 
     sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-        provideReferences: async (doc, pos) => {
+        provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
             const response = await sendDocPositionRequest({ doc, pos, ty: lsp.ReferencesRequest.type, useCache: true })
             return convert.references({ currentDocURI: doc.uri, references: response })
         },
@@ -619,7 +619,11 @@ export async function activateUsingWebSockets(): Promise<void> {
         register: () =>
             sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
                 provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-                    xrefs({ doc, pos, sendRequest }).pipe(
+                    xrefs({
+                        doc,
+                        pos,
+                        sendRequest,
+                    }).pipe(
                         scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
                         map(response => convert.xreferences({ references: response }))
                     ),
@@ -628,7 +632,7 @@ export async function activateUsingWebSockets(): Promise<void> {
     })
 
     sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
-        provideImplementation: async (doc, pos) => {
+        provideImplementation: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
             const response = await sendDocPositionRequest({
                 doc,
                 pos,
