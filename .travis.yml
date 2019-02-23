@@ -12,7 +12,7 @@ jobs:
       install: skip
       script:
         - yarn
-        - yarn run prettier-check
+        - yarn run prettier check
         - yarn run typecheck
         - yarn run build
 stages:
