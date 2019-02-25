@@ -1,3 +1,5 @@
+import '@babel/polyfill'
+
 import { activateBasicCodeIntel } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
