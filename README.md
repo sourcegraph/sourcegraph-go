@@ -228,3 +228,9 @@ You can run multiple instances of the go-langserver and distribute connections b
 +  replicas: 5
    revisionHistoryLimit: 10
 ```
+
+## Viewing communication between the browser and language server
+
+This extension communicates from your browser to the language server that you deployed over WebSockets. This means that when you're viewing a code file on Sourcegraph, you can open the browser developer tools and refresh the page to capture the WebSocket connection and view the messages being sent and received:
+
+![image](https://user-images.githubusercontent.com/1387653/53431623-c0e30000-39a5-11e9-963d-42260ca12de3.png)
