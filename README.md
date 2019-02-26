@@ -19,7 +19,7 @@ Docker image `sourcegraph/lang-go` from Docker Hub.
       go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
     ```
 
-    You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws):
+    You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws) (run this from the same machine your browser is running on):
 
     ```sh
     $ go get -u github.com/hashrocket/ws
