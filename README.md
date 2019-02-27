@@ -10,7 +10,7 @@ This extension is configured to talk to a language server over WebSockets. If yo
 private Sourcegraph instance, you should run your own language server. The server is available as a
 Docker image `sourcegraph/lang-go` from Docker Hub.
 
-### 🚨 Secure deployment 🚨
+### 🔐 Secure deployment 🔐
 
 Anyone that connects to the language server can access resources such as private
 code that the language server has access to.
