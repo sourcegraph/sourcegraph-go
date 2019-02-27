@@ -10,6 +10,16 @@ This extension is configured to talk to a language server over WebSockets. If yo
 private Sourcegraph instance, you should run your own language server. The server is available as a
 Docker image `sourcegraph/lang-go` from Docker Hub.
 
+### 🚨 Secure deployment 🚨
+
+Anyone that connects to the language server can access resources such as private
+code that the language server has access to.
+
+We recommend deploying the language server behind an auth proxy or firewall and
+treating it like an authenticated user. Make sure you set `go.sourcegraphUrl` to
+the URL that the language server should use to reach Sourcegraph, which is
+likely different from the URL that end users use.
+
 ### Using Docker
 
 1. Run the Go language server:
@@ -43,15 +53,6 @@ Docker image `sourcegraph/lang-go` from Docker Hub.
     ```
 
 Now visit a Go file and you should see code intelligence!
-
-### Authentication proxies and firewalls
-
-Some customers deploy Sourcegraph behind an authentication proxy or firewall. If you do this, we
-recommend deploying the language server behind the proxy so that it can issue requests directly to
-Sourcegraph without going through the proxy. (Otherwise, you will need to configure the language
-server to authenticate through your proxy.) Make sure you set `go.sourcegraphUrl` to the URL
-that the language server should use to reach Sourcegraph, which is likely different from the URL
-that end users use.
 
 ### Using Kubernetes
 
@@ -168,6 +169,8 @@ spec:
 ```
 
 ## Private dependencies
+
+🚨 Before mounting your credentials into the language server, make sure the language server is hidden behind an auth proxy or firewall. 🚨
 
 ### Private dependencies via `.netrc`
 
