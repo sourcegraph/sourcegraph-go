@@ -75,7 +75,7 @@ async function userHasAccessTokenWithNote(note: string): Promise<boolean> {
     ) {
         return false
     }
-    if (response.currentUser.accessTokens.pageInfo && response.currentUser.accessTokens.pageInfo.hasNextPage === true) {
+    if (response.currentUser.accessTokens.pageInfo && response.currentUser.accessTokens.pageInfo.hasNextPage) {
         throw new Error('You have too many access tokens (over 1000).')
     }
     return response.currentUser.accessTokens.nodes.some(token => token.note === note)
@@ -247,20 +247,19 @@ function repoNameFromDoc(doc: sourcegraph.TextDocument): string {
  */
 function mkSendRequest(address: string, token: string | undefined): Observable<SendRequest> {
     const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
-    function connectionFor(root: URL): Promise<rpc.MessageConnection> {
+    async function connectionFor(root: URL): Promise<rpc.MessageConnection> {
         if (rootURIToConnection[root.href]) {
             return rootURIToConnection[root.href]
         } else {
             rootURIToConnection[root.href] = connectAndInitialize(address, root, token)
-            rootURIToConnection[root.href].then(connection => {
-                connection.onDispose(() => {
-                    delete rootURIToConnection[root.href]
-                })
-                connection.onClose(() => {
-                    delete rootURIToConnection[root.href]
-                })
+            const connection = await rootURIToConnection[root.href]
+            connection.onDispose(() => {
+                delete rootURIToConnection[root.href]
             })
-            return rootURIToConnection[root.href]
+            connection.onClose(() => {
+                delete rootURIToConnection[root.href]
+            })
+            return connection
         }
     }
 
@@ -275,11 +274,12 @@ function mkSendRequest(address: string, token: string | undefined): Observable<S
         }
     }
 
-    return Observable.create((observer: Observer<SendRequest>) => {
+    return new Observable((observer: Observer<SendRequest>) => {
         observer.next(sendRequest)
         return () => {
             for (const rootURI of Object.keys(rootURIToConnection)) {
                 if (rootURIToConnection[rootURI]) {
+                    // tslint:disable-next-line: no-floating-promises
                     rootURIToConnection[rootURI].then(connection => connection.dispose())
                     delete rootURIToConnection[rootURI]
                 }
@@ -487,7 +487,6 @@ function xrefs({
 
                 return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
             },
-            undefined,
             10 // 10 concurrent connections
         ),
         concatMap(references => references)
@@ -633,8 +632,8 @@ export async function activateUsingWebSockets(): Promise<void> {
         settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
     })
 
-    sourcegraph.languages.registerImplementationProvider([{ pattern: '*.go' }], {
-        provideImplementation: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+    sourcegraph.languages.registerLocationProvider('id', [{ pattern: '*.go' }], {
+        provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
             const response = await sendDocPositionRequest({
                 doc,
                 pos,

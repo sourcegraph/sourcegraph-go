@@ -1,0 +1,21 @@
+env:
+  FORCE_COLOR: '1'
+
+steps:
+  # Run tests
+  - command: |-
+      yarn
+      yarn run prettier-check
+      yarn run tslint
+      yarn run typecheck
+      yarn run build
+    label: ':go:'
+
+  - wait
+
+  # Build & deploy extension
+  - command: ./deploy.sh
+    branches: master
+    label: ':rocket:'
+    concurrency: 1
+    concurrency_group: deploy
