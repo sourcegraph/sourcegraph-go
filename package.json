@@ -94,6 +94,7 @@
     "@sourcegraph/prettierrc": "^2.2.0",
     "@sourcegraph/tsconfig": "^3.0.0",
     "@sourcegraph/tslint-config": "^12.3.1",
+    "concurrently": "^4.1.0",
     "parcel-bundler": "^1.11.0",
     "sourcegraph": "^23.0.0",
     "tslint": "^5.11.0",

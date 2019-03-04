@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -ex
+
+yarn
+env FORCE_COLOR=0 \
+  yarn run concurrently \
+    --names serve,build \
+    --prefix name \
+    --kill-others \
+    'yarn run serve | cat' \
+    'yarn run watch:typecheck'
