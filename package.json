@@ -81,8 +81,7 @@
     "watch:build": "tsc -p tsconfig.dist.json -w",
     "prettier": "prettier --list-different --write \"src/**/*.ts\"",
     "prettier-check": "npm run prettier -- --write=false",
-    "hascleantree": "! ls -l node_modules/ node_modules/@* | grep \"^l\" && git diff-index --quiet HEAD --",
-    "sourcegraph:prepublish": "yarn run hascleantree && yarn run build"
+    "sourcegraph:prepublish": "yarn run build"
   },
   "browserslist": [
     "last 1 Chrome versions",
