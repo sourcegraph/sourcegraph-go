@@ -1,3 +1,4 @@
+import * as lspClient from '@sourcegraph/lsp-client'
 import '@babel/polyfill'
 
 import { activateBasicCodeIntel, registerFeedbackButton } from '@sourcegraph/basic-code-intel'
@@ -26,6 +27,7 @@ import {
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
+import { TextDocument } from 'sourcegraph'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -739,11 +741,43 @@ const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
-        const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
-        if (address) {
-            ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+        if (Math.random() < 0) {
+            const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
+            if (address) {
+                ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+                await activateUsingWebSockets(ctx)
+            } else {
+                activateBasicCodeIntel({
+                    sourcegraph,
+                    languageID: 'go',
+                    fileExts: ['go'],
+                    filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
+                        const currentFileImportedPaths = fileContent
+                            .split('\n')
+                            .map(line => {
+                                // Matches the import at index 3
+                                const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                                return match ? match[3] : undefined
+                            })
+                            .filter((x): x is string => Boolean(x))
 
-            await activateUsingWebSockets(ctx)
+                        const currentFileImportPath = repo + '/' + path.dirname(filePath)
+
+                        const filteredResults = results.filter(result => {
+                            const resultImportPath = result.repo + '/' + path.dirname(result.file)
+                            return (
+                                currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
+                                resultImportPath === currentFileImportPath
+                            )
+                        })
+
+                        return filteredResults.length === 0 ? results : filteredResults
+                    },
+                    commentStyle: {
+                        lineRegex: /\/\/\s?/,
+                    },
+                })(ctx)
+            }
         } else {
             ctx.subscriptions.add(
                 registerFeedbackButton({
@@ -753,36 +787,45 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                 })
             )
 
-            activateBasicCodeIntel({
-                sourcegraph,
-                languageID: 'go',
-                fileExts: ['go'],
-                filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
-                    const currentFileImportedPaths = fileContent
-                        .split('\n')
-                        .map(line => {
-                            // Matches the import at index 3
-                            const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
-                            return match ? match[3] : undefined
-                        })
-                        .filter((x): x is string => Boolean(x))
+            const token = await getOrTryToCreateAccessToken()
+            if (!token) {
+                // console.log('No token')
+            } else {
+                // tslint:disable-next-line: no-empty
+                const noop = () => {}
 
-                    const currentFileImportPath = repo + '/' + path.dirname(filePath)
-
-                    const filteredResults = results.filter(result => {
-                        const resultImportPath = result.repo + '/' + path.dirname(result.file)
-                        return (
-                            currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
-                            resultImportPath === currentFileImportPath
-                        )
+                const serverURL = sourcegraph.configuration.get<Settings>().value['go.serverUrl']
+                if (serverURL) {
+                    const client = await lspClient.register({
+                        sourcegraph,
+                        transport: lspClient.webSocketTransport({
+                            serverUrl: serverURL,
+                            logger: {
+                                error: noop,
+                                warn: noop,
+                                info: noop,
+                                log: noop,
+                            },
+                        }),
+                        documentSelector: [{ language: 'go' }],
+                        // clientToServerURI: uri => ..., // optional
+                        // serverToClientURI: uri => ..., // optional
+                        initializationOptions: (url: URL) => {
+                            url.hash = ''
+                            return {
+                                zipURL: constructZipURL({
+                                    repoName: pathname(url.href).replace(/^\/+/, ''),
+                                    revision: url.search.substr(1),
+                                    token,
+                                }),
+                            }
+                        },
                     })
-
-                    return filteredResults.length === 0 ? results : filteredResults
-                },
-                commentStyle: {
-                    lineRegex: /\/\/\s?/,
-                },
-            })(ctx)
+                    ctx.subscriptions.add(client)
+                } else {
+                    // console.log('No go.serverUrl set')
+                }
+            }
         }
     }
     setTimeout(afterActivate, 100)
