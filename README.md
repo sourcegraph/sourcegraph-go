@@ -12,13 +12,68 @@ Docker image `sourcegraph/lang-go` from Docker Hub.
 
 ### 🔐 Secure deployment 🔐
 
-Anyone that connects to the language server can access resources such as private
-code that the language server has access to.
+If you have private code, we recommend deploying the language server behind an
+auth proxy (such as HTTP basic authentication below), a firewall, or a VPN.
 
-We recommend deploying the language server behind an auth proxy or firewall and
-treating it like an authenticated user. Make sure you set `go.sourcegraphUrl` to
-the URL that the language server should use to reach Sourcegraph, which is
-likely different from the URL that end users use.
+### HTTP basic authentication
+
+You can prevent unauthorized access to the language server by enforcing HTTP basic authentication in nginx, which comes with the sourcegraph/server image. At a high level, you'll create a secret then put it in both the nginx config and in your Sourcegraph global settings so that logged-in users are authenticated when their browser makes requests to the Go language server.
+
+Here's how to set it up:
+
+Create an `.htpasswd` file in the Sourcegraph config directory with one entry:
+
+```
+$ htpasswd -c ~/.sourcegraph/config/.htpasswd langserveruser
+New password:
+Re-type new password:
+Adding password for user langserveruser
+```
+
+Add these to your Sourcegraph global settings:
+
+```
+  "go.serverUrl": "ws://langserveruser:PASSWORD@host.docker.internal:4389/go",
+  "go.sourcegraphUrl": "http://host.docker.internal:7080",
+```
+
+Fill in the `PASSWORD` that you created above.
+
+- If you're running on Linux, change `host.docker.internal` to the output of `ip addr show docker0 | grep -Po 'inet \K[\d.]+'`.
+- If you're not using the quickstart and are deploying elsewhere, change the settings so that:
+  - `go.serverUrl` is accessible from users' browsers
+  - `go.sourcegraphUrl` is the address of the Sourcegraph instance and is accessible from the Go language server
+
+Add a location directive the [nginx.conf](https://docs.sourcegraph.com/admin/nginx) that will route requests to the Go language server:
+
+```nginx
+...
+http {
+    ...
+    server {
+        ...
+        location / {
+            ...
+        }
+
+        location /go {
+            proxy_pass http://host.docker.internal:4389;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "Upgrade";
+
+            auth_basic "basic authentication is required to access the language server";
+            auth_basic_user_file /etc/sourcegraph/.htpasswd;
+        }
+    }
+}
+```
+
+Again, change `host.docker.internal` depending on the deployment environment.
+
+Finally, restart the sourcegraph/server container to pick up the configuration change.
+
+After deploying the language server, unauthenticated access to `http://localhohst:7080/go` should be blocked, but code intelligence should work when you're logged in.
 
 ### Using Docker
 
