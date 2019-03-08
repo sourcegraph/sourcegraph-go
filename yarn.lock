@@ -695,14 +695,14 @@
   dependencies:
     esquery "^1.0.1"
 
-"@sourcegraph/basic-code-intel@6.0.5":
-  version "6.0.5"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-6.0.5.tgz#09d394066ea2e860c2c89354425c0fd331abe0c6"
-  integrity sha512-T6tx5srg9s/kqGnF9JydWqyAyxLGueaOa/IlLRRcKBwvVyTWPwBeg1kWXxPaBTVTR6VKt9E9LOx3BqNTGuNYHw==
+"@sourcegraph/basic-code-intel@6.0.6":
+  version "6.0.6"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-6.0.6.tgz#dfa02255519da49b8c2bce4167be90af7cb528cb"
+  integrity sha512-SgAhg8gBOQx3UvDNY8qLqBsJRJHW/b4kLnswEOi4A2lkCX9KaVFzLW03FmZO5/jRrXdT/uc0IJ0CLSwhu8ZRtg==
   dependencies:
     lodash "^4.17.11"
     rxjs "^6.3.3"
-    sourcegraph "^22.0.0"
+    sourcegraph "^23.0.0"
 
 "@sourcegraph/prettierrc@^2.2.0":
   version "2.2.0"
@@ -4809,11 +4809,6 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   resolved "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3"
   dependencies:
     vscode-languageserver-types "^3.12.0"
-
-sourcegraph@^22.0.0:
-  version "22.0.0"
-  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-22.0.0.tgz#b259929c31bf367f5160056698a881dc26eb36bd"
-  integrity sha512-cJHby0OPCM0y0BmRTKhY89D02f9koROluHMJGQGNE8q9CoIVbe1s6ctHCytz7bjY9mKtCpQMbtxYQhfIm5S4lg==
 
 sourcegraph@^23.0.0:
   version "23.0.0"
