@@ -5,6 +5,7 @@ steps:
   # Run tests
   - command: |-
       yarn
+      git diff --exit-code
       yarn run prettier-check
       yarn run tslint
       yarn run typecheck
