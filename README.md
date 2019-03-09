@@ -33,7 +33,7 @@ Adding password for user langserveruser
 Add these to your Sourcegraph global settings:
 
 ```
-  "go.serverUrl": "ws://langserveruser:PASSWORD@host.docker.internal:4389/go",
+  "go.serverUrl": "ws://langserveruser:PASSWORD@host.docker.internal:7080/go",
   "go.sourcegraphUrl": "http://host.docker.internal:7080",
 ```
 
