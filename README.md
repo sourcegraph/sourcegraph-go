@@ -13,7 +13,7 @@ Docker image `sourcegraph/lang-go` from Docker Hub.
 ### 🔐 Secure deployment 🔐
 
 If you have private code, we recommend deploying the language server behind an
-auth proxy (such as HTTP basic authentication below), a firewall, or a VPN.
+auth proxy (such as the example below using HTTP basic authentication in NGINX), a firewall, or a VPN.
 
 ### HTTP basic authentication
 
