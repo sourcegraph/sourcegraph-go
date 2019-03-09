@@ -73,7 +73,7 @@ Again, change `host.docker.internal` depending on the deployment environment.
 
 Finally, restart the sourcegraph/server container to pick up the configuration change.
 
-After deploying the language server, unauthenticated access to `http://localhohst:7080/go` should be blocked, but code intelligence should work when you're logged in.
+After deploying the language server, unauthenticated access to `http://localhost:7080/go` should be blocked, but code intelligence should work when you're logged in.
 
 ### Using Docker
 
