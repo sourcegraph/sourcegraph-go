@@ -76,6 +76,8 @@ Finally, restart the sourcegraph/server container (or nginx deployment if deploy
 
 After deploying the language server, unauthenticated access to `http://localhost:7080/go` (or https://sourcegraph.example.com/go) should be blocked, but code intelligence should work when you're logged in.
 
+You can always revoke the `PASSWORD` by deleting the `.htpasswd` file and restarting nginx.
+
 ### Using Docker
 
 1. Run the Go language server:
