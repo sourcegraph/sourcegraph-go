@@ -647,8 +647,10 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         })
     )
 
+    // Implementations panel.
+    const IMPL_ID = 'go.impl' // implementations panel and provider ID
     ctx.subscriptions.add(
-        sourcegraph.languages.registerLocationProvider('id', [{ pattern: '*.go' }], {
+        sourcegraph.languages.registerLocationProvider(IMPL_ID, [{ pattern: '*.go' }], {
             provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
                 const response = await sendDocPositionRequest({
                     doc,
@@ -660,6 +662,11 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
             },
         })
     )
+    const panelView = sourcegraph.app.createPanelView(IMPL_ID)
+    panelView.title = 'Go ifaces/impls'
+    panelView.component = { locationProvider: IMPL_ID }
+    panelView.priority = 160
+    ctx.subscriptions.add(panelView)
 }
 
 function pathname(url: string): string {
