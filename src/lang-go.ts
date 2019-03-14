@@ -508,12 +508,14 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export async function activateUsingWebSockets(): Promise<void> {
+export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext): Promise<void> {
     const accessToken = await getOrTryToCreateAccessToken()
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
-    sourcegraph.configuration.subscribe(() => {
-        settings.next(sourcegraph.configuration.get<Settings>().value)
-    })
+    ctx.subscriptions.add(
+        sourcegraph.configuration.subscribe(() => {
+            settings.next(sourcegraph.configuration.get<Settings>().value)
+        })
+    )
     const langserverAddress = settings.pipe(map(settings => settings['go.serverUrl']))
 
     const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'go.address' as keyof Settings}": "wss://example.com" to your settings.`
@@ -555,31 +557,42 @@ export async function activateUsingWebSockets(): Promise<void> {
             useCache,
         })
 
-    sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
-        provideHover: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-            const response = await sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true })
-            return convert.hover(response)
-        },
-    })
+    ctx.subscriptions.add(
+        sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
+            provideHover: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+                const response = await sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true })
+                return convert.hover(response)
+            },
+        })
+    )
 
-    sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
-        provideDefinition: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-            const response = await sendDocPositionRequest({
-                doc,
-                pos,
-                ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-                useCache: true,
-            })
-            return convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })
-        },
-    })
+    ctx.subscriptions.add(
+        sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
+            provideDefinition: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+                const response = await sendDocPositionRequest({
+                    doc,
+                    pos,
+                    ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+                    useCache: true,
+                })
+                return convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })
+            },
+        })
+    )
 
-    sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-        provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-            const response = await sendDocPositionRequest({ doc, pos, ty: lsp.ReferencesRequest.type, useCache: true })
-            return convert.references({ currentDocURI: doc.uri, references: response })
-        },
-    })
+    ctx.subscriptions.add(
+        sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+            provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+                const response = await sendDocPositionRequest({
+                    doc,
+                    pos,
+                    ty: lsp.ReferencesRequest.type,
+                    useCache: true,
+                })
+                return convert.references({ currentDocURI: doc.uri, references: response })
+            },
+        })
+    )
 
     /**
      * Automatically registers/deregisters a provider based on the given predicate of the settings.
@@ -616,33 +629,37 @@ export async function activateUsingWebSockets(): Promise<void> {
             .subscribe()
     }
 
-    registerWhile({
-        register: () =>
-            sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-                provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-                    xrefs({
-                        doc,
-                        pos,
-                        sendRequest,
-                    }).pipe(
-                        scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
-                        map(response => convert.xreferences({ references: response }))
-                    ),
-            }),
-        settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
-    })
+    ctx.subscriptions.add(
+        registerWhile({
+            register: () =>
+                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                        xrefs({
+                            doc,
+                            pos,
+                            sendRequest,
+                        }).pipe(
+                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                            map(response => convert.xreferences({ references: response }))
+                        ),
+                }),
+            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
+        })
+    )
 
-    sourcegraph.languages.registerLocationProvider('id', [{ pattern: '*.go' }], {
-        provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-            const response = await sendDocPositionRequest({
-                doc,
-                pos,
-                ty: lsp.ImplementationRequest.type,
-                useCache: true,
-            })
-            return convert.references({ currentDocURI: doc.uri, references: response })
-        },
-    })
+    ctx.subscriptions.add(
+        sourcegraph.languages.registerLocationProvider('id', [{ pattern: '*.go' }], {
+            provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+                const response = await sendDocPositionRequest({
+                    doc,
+                    pos,
+                    ty: lsp.ImplementationRequest.type,
+                    useCache: true,
+                })
+                return convert.references({ currentDocURI: doc.uri, references: response })
+            },
+        })
+    )
 }
 
 function pathname(url: string): string {
@@ -652,11 +669,14 @@ function pathname(url: string): string {
     return pathname
 }
 
-export function activate(ctx: sourcegraph.ExtensionContext): void {
+// No-op for Sourcegraph versions prior to 3.0.
+const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
+
+export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
-            await activateUsingWebSockets()
+            await activateUsingWebSockets(ctx)
         } else {
             activateBasicCodeIntel({
                 languageID: 'go',
