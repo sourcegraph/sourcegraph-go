@@ -51,11 +51,12 @@
     "menus": {
       "panel/toolbar": [
         {
-          "action": "externalReferences.toggle"
+          "action": "externalReferences.toggle",
+          "when": "panel.activeView.id == 'references'"
         },
         {
           "action": "impreciseResults",
-          "when": "isImprecise"
+          "when": "isImprecise && panel.activeView.hasLocations"
         }
       ]
     },
