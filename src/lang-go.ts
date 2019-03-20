@@ -326,23 +326,34 @@ async function repositoriesThatImportViaGDDO(
                 )
                 .slice(0, limit)
                 .map(async repo => {
-                    const gqlResponse = await queryGraphQL(
-                        `
+                    try {
+                        const gqlResponse = await queryGraphQL(
+                            `
                         query($cloneURL: String!) {
                             repository(cloneURL: $cloneURL) {
                                 name
                             }
                         }
                     `,
-                        { cloneURL: repo }
-                    )
-                    if (!gqlResponse || !gqlResponse.repository || !gqlResponse.repository.name) {
-                        // We only know how to construct zip URLs for fetching repos
-                        // on Sourcegraph instances. Since this candidate repo is absent from
-                        // the Sourcegraph instance, discard it.
+                            { cloneURL: repo }
+                        )
+                        if (!gqlResponse || !gqlResponse.repository || !gqlResponse.repository.name) {
+                            // We only know how to construct zip URLs for fetching repos
+                            // on Sourcegraph instances. Since this candidate repo is absent from
+                            // the Sourcegraph instance, discard it.
+                            return undefined
+                        }
+                        return gqlResponse.repository.name as string
+                    } catch (err) {
+                        if (err.message && err.message.includes('ExternalRepo:<nil>')) {
+                            console.warn(
+                                `Unable to find cross-repository references in ${repo}, probably because the repository was renamed and Sourcegraph does not support renamed repositories yet.`
+                            )
+                        } else {
+                            console.warn(err)
+                        }
                         return undefined
                     }
-                    return gqlResponse.repository.name as string
                 })
         )).filter((repo): repo is string => !!repo)
         return new Set(
