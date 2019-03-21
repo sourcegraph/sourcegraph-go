@@ -4,8 +4,7 @@ env:
 steps:
   # Run tests
   - command: |-
-      yarn
-      git diff --exit-code
+      yarn --frozen-lockfile
       yarn run prettier-check
       yarn run tslint
       yarn run typecheck
