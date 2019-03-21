@@ -699,7 +699,35 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
             activateBasicCodeIntel({
                 languageID: 'go',
                 fileExts: ['go'],
-                definitionPatterns: ['\\b%s(,\\s\\w+)*\\s\\:=', '(var|const)\\s%s\\s'],
+                filterDefinitions: ({ doc, pos, fileContent, results }) => {
+                    const currentFileImportedPaths = fileContent
+                        .split('\n')
+                        .map(line => {
+                            // Matches the import at index 3
+                            const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                            return match ? match[3] : undefined
+                        })
+                        .filter((x): x is string => Boolean(x))
+
+                    function dir(path: string): string {
+                        return path.slice(0, path.lastIndexOf('/'))
+                    }
+
+                    const currentFileURL = new URL(doc.uri)
+                    const currentRepository = currentFileURL.hostname + currentFileURL.pathname
+                    const currentFilePath = currentFileURL.hash.slice(1)
+                    const currentFileImportPath = currentRepository + '/' + dir(currentFilePath)
+
+                    const filteredResults = results.filter(result => {
+                        const resultImportPath = result.repo + '/' + dir(result.file)
+                        return (
+                            currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
+                            resultImportPath === currentFileImportPath
+                        )
+                    })
+
+                    return filteredResults.length === 0 ? results : filteredResults
+                },
                 commentStyle: {
                     lineRegex: /\/\/\s?/,
                 },
