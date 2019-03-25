@@ -320,10 +320,16 @@ async function repositoriesThatImportViaGDDO(
         const repoNames: string[] = (await Promise.all(
             response.results
                 .map(result => result.path)
-                .filter(repo =>
+                .filter(path =>
                     // This helps filter out repos that do not exist on the Sourcegraph.com instance
-                    repo.startsWith('github.com/')
+                    path.startsWith('github.com/')
                 )
+                .map(path => {
+                    // Chop off portion after "github.com/owner/repo".
+                    const parts = path.split('/')
+                    return parts.slice(0, 3).join('/')
+                })
+                .filter(repo => !!repo)
                 .slice(0, limit)
                 .map(async repo => {
                     try {
