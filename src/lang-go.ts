@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { activateBasicCodeIntel } from '@sourcegraph/basic-code-intel'
+import * as basicCodeIntel from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
@@ -9,7 +9,20 @@ import * as lsp from 'vscode-languageserver-protocol'
 import * as convert from './convert-lsp-to-sea'
 import * as lspext from './lspext'
 
-import { BehaviorSubject, from, Observable, Observer, of, throwError } from 'rxjs'
+const path = require('path-browserify')
+
+import {
+    BehaviorSubject,
+    from,
+    Observable,
+    Observer,
+    of,
+    throwError,
+    race,
+    combineLatest,
+    ObservableInput,
+    merge,
+} from 'rxjs'
 import {
     concatMap,
     distinctUntilChanged,
@@ -20,11 +33,20 @@ import {
     switchMap,
     take,
     finalize,
+    tap,
+    delay,
+    mapTo,
+    startWith,
+    takeUntil,
+    share,
+    filter,
+    endWith,
 } from 'rxjs/operators'
 
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
+import { documentSelector } from '@sourcegraph/basic-code-intel/lib/handler'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -210,6 +232,8 @@ async function connectAndInitialize(
             },
         }
     )
+
+    console.log('Language server initialized ✅')
 
     connection.sendNotification(lsp.InitializedNotification.type)
 
@@ -523,9 +547,34 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 }
 
 /**
+ * Emits from `fallback` after `delayMilliseconds`. Useful for falling back to
+ * basic-code-intel while the language server is running.
+ */
+function withFallback<T>({
+    main,
+    fallback,
+    delayMilliseconds,
+}: {
+    main: ObservableInput<T>
+    fallback: ObservableInput<T>
+    delayMilliseconds: number
+}): Observable<T> {
+    return race(
+        of(null).pipe(switchMap(() => from(main))),
+        of(null).pipe(
+            delay(delayMilliseconds),
+            switchMap(() => from(fallback))
+        )
+    )
+}
+
+/**
  * Uses WebSockets to communicate with a language server.
  */
-export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext): Promise<void> {
+export async function activateUsingWebSockets(
+    ctx: sourcegraph.ExtensionContext,
+    basicCodeIntelHandler: basicCodeIntel.Handler
+): Promise<void> {
     const accessToken = await getOrTryToCreateAccessToken()
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     ctx.subscriptions.add(
@@ -576,38 +625,46 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
 
     ctx.subscriptions.add(
         sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
-            provideHover: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true })
-                return convert.hover(response)
-            },
+            provideHover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                withFallback({
+                    main: sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true }).then(
+                        convert.hover
+                    ),
+                    fallback: basicCodeIntelHandler.hover(doc, pos),
+                    delayMilliseconds: 500,
+                }),
         })
     )
 
     ctx.subscriptions.add(
         sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
-            provideDefinition: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({
-                    doc,
-                    pos,
-                    ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-                    useCache: true,
-                })
-                return convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })
-            },
+            provideDefinition: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                withFallback({
+                    main: sendDocPositionRequest({
+                        doc,
+                        pos,
+                        ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+                        useCache: true,
+                    }).then(response => convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })),
+                    fallback: basicCodeIntelHandler.definition(doc, pos),
+                    delayMilliseconds: 500,
+                }),
         })
     )
 
     ctx.subscriptions.add(
         sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-            provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({
-                    doc,
-                    pos,
-                    ty: lsp.ReferencesRequest.type,
-                    useCache: true,
-                })
-                return convert.references({ currentDocURI: doc.uri, references: response })
-            },
+            provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                withFallback({
+                    main: sendDocPositionRequest({
+                        doc,
+                        pos,
+                        ty: lsp.ReferencesRequest.type,
+                        useCache: true,
+                    }).then(response => convert.references({ currentDocURI: doc.uri, references: response })),
+                    fallback: basicCodeIntelHandler.references(doc, pos),
+                    delayMilliseconds: 2000,
+                }),
         })
     )
 
@@ -693,51 +750,61 @@ function pathname(url: string): string {
     return pathname
 }
 
+const basicCodeIntelHandlerArgs: basicCodeIntel.HandlerArgs = {
+    sourcegraph,
+    languageID: 'go',
+    fileExts: ['go'],
+    filterDefinitions: ({ repo, filePath, fileContent, results }) => {
+        const currentFileImportedPaths = fileContent
+            .split('\n')
+            .map(line => {
+                // Matches the import at index 3
+                const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                return match ? match[3] : undefined
+            })
+            .filter((x): x is string => Boolean(x))
+
+        const currentFileImportPath = repo + '/' + path.dirname(filePath)
+
+        const filteredResults = results.filter(result => {
+            const resultImportPath = result.repo + '/' + path.dirname(result.file)
+            return [...currentFileImportedPaths, currentFileImportPath].some(i => resultImportPath === i)
+        })
+
+        return filteredResults.length === 0 ? results : filteredResults
+    },
+    commentStyle: {
+        lineRegex: /\/\/\s?/,
+    },
+}
+
 // No-op for Sourcegraph versions prior to 3.0.
 const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
+        const basicCodeIntelHandler = new basicCodeIntel.Handler(basicCodeIntelHandlerArgs)
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
-            await activateUsingWebSockets(ctx)
+            await activateUsingWebSockets(ctx, basicCodeIntelHandler)
         } else {
-            activateBasicCodeIntel({
-                languageID: 'go',
-                fileExts: ['go'],
-                filterDefinitions: ({ doc, pos, fileContent, results }) => {
-                    const currentFileImportedPaths = fileContent
-                        .split('\n')
-                        .map(line => {
-                            // Matches the import at index 3
-                            const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
-                            return match ? match[3] : undefined
-                        })
-                        .filter((x): x is string => Boolean(x))
+            sourcegraph.internal.updateContext({ isImprecise: true })
 
-                    function dir(path: string): string {
-                        return path.slice(0, path.lastIndexOf('/'))
-                    }
-
-                    const currentFileURL = new URL(doc.uri)
-                    const currentRepository = currentFileURL.hostname + currentFileURL.pathname
-                    const currentFilePath = currentFileURL.hash.slice(1)
-                    const currentFileImportPath = currentRepository + '/' + dir(currentFilePath)
-
-                    const filteredResults = results.filter(result => {
-                        const resultImportPath = result.repo + '/' + dir(result.file)
-                        return (
-                            currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
-                            resultImportPath === currentFileImportPath
-                        )
-                    })
-
-                    return filteredResults.length === 0 ? results : filteredResults
-                },
-                commentStyle: {
-                    lineRegex: /\/\/\s?/,
-                },
-            })(ctx)
+            ctx.subscriptions.add(
+                sourcegraph.languages.registerHoverProvider(documentSelector(basicCodeIntelHandler.fileExts), {
+                    provideHover: (doc, pos) => basicCodeIntelHandler.hover(doc, pos),
+                })
+            )
+            ctx.subscriptions.add(
+                sourcegraph.languages.registerDefinitionProvider(documentSelector(basicCodeIntelHandler.fileExts), {
+                    provideDefinition: (doc, pos) => basicCodeIntelHandler.definition(doc, pos),
+                })
+            )
+            ctx.subscriptions.add(
+                sourcegraph.languages.registerReferenceProvider(documentSelector(basicCodeIntelHandler.fileExts), {
+                    provideReferences: (doc, pos) => basicCodeIntelHandler.references(doc, pos),
+                })
+            )
         }
     }
     setTimeout(afterActivate, 100)
