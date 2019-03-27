@@ -233,8 +233,6 @@ async function connectAndInitialize(
         }
     )
 
-    console.log('Language server initialized ✅')
-
     connection.sendNotification(lsp.InitializedNotification.type)
 
     return connection
