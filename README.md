@@ -84,7 +84,7 @@ You can always revoke the `PASSWORD` by deleting the `.htpasswd` file and restar
 
     ```sh
     docker run --rm --name lang-go -p 4389:4389 sourcegraph/lang-go \
-      go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false
+      go-langserver -mode=websocket -addr=:4389 -usebuildserver -usebinarypkgcache=false -freeosmemory=false
     ```
 
     You can verify it's up and running with [`ws`](https://github.com/hashrocket/ws) (run this from the same machine your browser is running on):
@@ -171,6 +171,7 @@ spec:
         - -usebuildserver
         - -usebinarypkgcache=false
         - -cachedir=$(CACHE_DIR)
+        - -freeosmemory=false
         env:
         - name: LIGHTSTEP_ACCESS_TOKEN
           value: '???'
