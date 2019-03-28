@@ -659,10 +659,19 @@ export async function activateUsingWebSockets(
                         pos,
                         ty: lsp.ReferencesRequest.type,
                         useCache: true,
-                    }).then(response => convert.references({ currentDocURI: doc.uri, references: response })),
-                    fallback: basicCodeIntelHandler.references(doc, pos),
+                    }).then(response => ({
+                        kind: 'main',
+                        result: convert.references({ currentDocURI: doc.uri, references: response }),
+                    })),
+                    fallback: basicCodeIntelHandler.references(doc, pos).then(result => ({ kind: 'fallback', result })),
                     delayMilliseconds: 2000,
-                }),
+                }).pipe(
+                    // Indicate in the UI that the results are imprecise
+                    tap(({ kind }) => {
+                        sourcegraph.internal.updateContext({ isImprecise: kind === 'fallback' })
+                    }),
+                    map(({ result }) => result)
+                ),
         })
     )
 
