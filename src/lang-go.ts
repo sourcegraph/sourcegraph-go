@@ -22,6 +22,7 @@ import {
     combineLatest,
     ObservableInput,
     merge,
+    timer,
 } from 'rxjs'
 import {
     concatMap,
@@ -557,12 +558,14 @@ function withFallback<T>({
     fallback: ObservableInput<T>
     delayMilliseconds: number
 }): Observable<T> {
-    return race(
-        of(null).pipe(switchMap(() => from(main))),
+    const mainObservable = from(main).pipe(share())
+    return merge(
         of(null).pipe(
             delay(delayMilliseconds),
-            switchMap(() => from(fallback))
-        )
+            switchMap(() => from(fallback)),
+            takeUntil(mainObservable)
+        ),
+        mainObservable
     )
 }
 
