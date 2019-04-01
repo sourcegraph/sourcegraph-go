@@ -203,7 +203,9 @@ async function connectAndInitialize(
         const webSocket = new WebSocket(address)
         const conn = createWebSocketConnection(wsrpc.toSocket(webSocket), new ConsoleLogger())
         webSocket.addEventListener('open', () => resolve(conn))
-        webSocket.addEventListener('error', reject)
+        webSocket.addEventListener('error', event =>
+            reject(new Error(`unable to connect to the Go language server at ${address}`))
+        )
     })) as rpc.MessageConnection
 
     connection.listen()
