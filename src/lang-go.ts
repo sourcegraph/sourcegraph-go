@@ -559,14 +559,13 @@ function withFallback<T>({
     fallback: ObservableInput<T>
     delayMilliseconds: number
 }): Observable<T> {
-    return from(main)
-    // return race(
-    //     of(null).pipe(switchMap(() => from(main))),
-    //     of(null).pipe(
-    //         delay(delayMilliseconds),
-    //         switchMap(() => from(fallback))
-    //     )
-    // )
+    return race(
+        of(null).pipe(switchMap(() => from(main))),
+        of(null).pipe(
+            delay(delayMilliseconds),
+            switchMap(() => from(fallback))
+        )
+    )
 }
 
 /**
