@@ -700,10 +700,10 @@
   resolved "https://registry.yarnpkg.com/@sindresorhus/is/-/is-0.7.0.tgz#9a06f4f137ee84d7df0460c1fdb1135ffa6c50fd"
   integrity sha512-ONhaKPIufzzrlNbqtWFFd+jlnemX6lJAgq9ZeiZtS7I1PIf/la7CW4m83rTXRnVnsMbW2k56pGYu7AUFJD9Pow==
 
-"@sourcegraph/basic-code-intel@6.0.14":
-  version "6.0.14"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-6.0.14.tgz#898216e8966d1b902c5e49199a2a33d255ed9de4"
-  integrity sha512-SekYreQAgpmeE4oNWh+Dke6ChXwudLyr+5qU79DX6lSQY1UQLg55T5cmwSbcIBLKwQzvyyUJ7YLvtQhXOn7QwA==
+"@sourcegraph/basic-code-intel@6.0.15":
+  version "6.0.15"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-6.0.15.tgz#b7c0baa894d89244fc5155a08839543cdbcca4ea"
+  integrity sha512-oMNbyAar7Sy4gnX5hLXQZhmLFy19zFtKndkJ4BlLCvRsmuJozMgWT32sUnhpDrco32NJQf6Irgl7a7PFX1Gb5w==
   dependencies:
     lodash "^4.17.11"
     rxjs "^6.3.3"
@@ -3832,11 +3832,6 @@ path-browserify@0.0.0:
   version "0.0.0"
   resolved "https://registry.yarnpkg.com/path-browserify/-/path-browserify-0.0.0.tgz#a0b870729aae214005b7d5032ec2cbbb0fb4451a"
   integrity sha1-oLhwcpquIUAFt9UDLsLLuw+0RRo=
-
-path-browserify@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/path-browserify/-/path-browserify-1.0.0.tgz#40702a97af46ae00b0ea6fa8998c0b03c0af160d"
-  integrity sha512-Hkavx/nY4/plImrZPHRk2CL9vpOymZLgEbMNX1U0bjcBL7QN9wODxyx0yaMZURSQaUtSEvDrfAvxa9oPb0at9g==
 
 path-dirname@^1.0.0:
   version "1.0.2"
