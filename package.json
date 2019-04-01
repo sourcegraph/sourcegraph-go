@@ -121,9 +121,8 @@
     "typescript": "^3.1.6"
   },
   "dependencies": {
-    "@sourcegraph/basic-code-intel": "6.0.14",
+    "@sourcegraph/basic-code-intel": "6.0.10",
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
-    "path-browserify": "^1.0.0",
     "prettier": "^1.16.4",
     "rxjs": "^6.3.3",
     "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3",
