@@ -9,7 +9,7 @@ import * as lsp from 'vscode-languageserver-protocol'
 import * as convert from './convert-lsp-to-sea'
 import * as lspext from './lspext'
 
-const path = require('path-browserify')
+import * as path from 'path'
 
 import {
     BehaviorSubject,
