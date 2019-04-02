@@ -741,7 +741,7 @@ const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
-        if (Math.random() < 0) {
+        if (!sourcegraph.configuration.get().get('lspclient')) {
             const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
             if (address) {
                 ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
@@ -808,16 +808,31 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                             },
                         }),
                         documentSelector: [{ language: 'go' }],
-                        // clientToServerURI: uri => ..., // optional
-                        // serverToClientURI: uri => ..., // optional
-                        initializationOptions: (url: URL) => {
-                            url.hash = ''
+                        clientToServerURI: (uri: URL) => new URL(`file:///${uri.hash.slice(1)}`),
+                        serverToClientURI: (uri, currentRootURI) => {
+                            if (!currentRootURI) {
+                                return uri
+                            }
+
+                            if (/^file:\/\/\//.test(uri.href)) {
+                                // The definition is in a file in the same repo
+                                const docURL = new URL(currentRootURI.href)
+                                docURL.hash = uri.href.slice('file:///'.length)
+                                return docURL
+                            }
+                            return uri
+                        },
+                        additionalInitializationOptions: (rootURI: URL) => {
+                            const originalRootURI = rootURI.href
+                            rootURI.hash = ''
                             return {
+                                originalRootURI,
                                 zipURL: constructZipURL({
-                                    repoName: pathname(url.href).replace(/^\/+/, ''),
-                                    revision: url.search.substr(1),
+                                    repoName: pathname(rootURI.href).replace(/^\/+/, ''),
+                                    revision: rootURI.search.substr(1),
                                     token,
                                 }),
+                                zipURLTemplate: zipURLTemplate(token),
                             }
                         },
                     })
