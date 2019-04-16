@@ -45,7 +45,7 @@ function sourcegraphURL(): URL {
                     [
                         `Invalid go.sourcegraphUrl ${url} in your Sourcegraph settings.`,
                         `Make sure it is set to the address of Sourcegraph from the perspective of the language server (e.g. http://sourcegraph-frontend:30080).`,
-                        `Check out the docs at https://github.com/sourcegraph/sourcegraph-go`,
+                        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
                     ].join('\n')
                 )
             )
@@ -196,13 +196,13 @@ async function connectAndInitialize(
     const connectingToGoLangserverHelp = [
         `Unable to connect to the Go language server at ${address}.`,
         `Make sure ${'go.address' as keyof Settings} in your Sourcegraph settings is set to the address of the language server (e.g. wss://sourcegraph.example.com/go).`,
-        `Check out the docs at https://github.com/sourcegraph/sourcegraph-go`,
+        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
     ].join('\n')
 
     const connectingToSourcegraphHelp = [
         `The Go language server running on ${address} was unable to fetch repository contents from Sourcegraph running on ${sourcegraphURL()}.`,
         `Make sure ${'go.sourcegraphUrl' as keyof Settings} in your settings is set to the address of Sourcegraph from the perspective of the language server (e.g. http://sourcegraph-frontend:30080 when running in Kubernetes).`,
-        `Check out the docs at https://github.com/sourcegraph/sourcegraph-go`,
+        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
     ].join('\n')
 
     const connection = (await new Promise((resolve, reject) => {
