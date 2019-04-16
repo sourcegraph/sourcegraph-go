@@ -32,11 +32,26 @@ import { Settings } from './settings'
 type XRef = lspext.Xreference & { currentDocURI: string }
 
 // Useful when go-langserver is running in a Docker container.
-function sourcegraphURL(): string {
-    return (
+function sourcegraphURL(): URL {
+    const url =
         (sourcegraph.configuration.get<Settings>().get('go.sourcegraphUrl') as string | undefined) ||
         sourcegraph.internal.sourcegraphURL.toString()
-    )
+    try {
+        return new URL(url)
+    } catch (e) {
+        if ('message' in e && /Invalid URL/.test(e.message)) {
+            console.error(
+                new Error(
+                    [
+                        `Invalid go.sourcegraphUrl ${url} in your Sourcegraph settings.`,
+                        `Make sure it is set to the address of Sourcegraph from the perspective of the language server (e.g. http://sourcegraph-frontend:30080).`,
+                        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
+                    ].join('\n')
+                )
+            )
+        }
+        throw e
+    }
 }
 
 interface AccessTokenResponse {
@@ -101,7 +116,7 @@ function constructZipURL({
     revision: string
     token: string | undefined
 }): string {
-    const zipURL = new URL(sourcegraphURL())
+    const zipURL = sourcegraphURL()
     // URL.pathname is different on Chrome vs Safari, so don't rely on it. Instead, constr
     return (
         zipURL.protocol +
@@ -118,7 +133,7 @@ function constructZipURL({
 
 // Returns a URL template to the raw API. For example: 'https://%s@localhost:3080/%s@%s/-/raw'
 function zipURLTemplate(token: string | undefined): string | undefined {
-    const url = new URL(sourcegraphURL())
+    const url = sourcegraphURL()
     return url.protocol + '//' + (token ? token + '@' : '') + url.host + '/%s@%s/-/raw'
 }
 
@@ -178,41 +193,64 @@ async function connectAndInitialize(
     root: URL,
     token: string | undefined
 ): Promise<rpc.MessageConnection> {
+    const connectingToGoLangserverHelp = [
+        `Unable to connect to the Go language server at ${address}.`,
+        `Make sure ${'go.address' as keyof Settings} in your Sourcegraph settings is set to the address of the language server (e.g. wss://sourcegraph.example.com/go).`,
+        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
+    ].join('\n')
+
+    const connectingToSourcegraphHelp = [
+        `The Go language server running on ${address} was unable to fetch repository contents from Sourcegraph running on ${sourcegraphURL()}.`,
+        `Make sure ${'go.sourcegraphUrl' as keyof Settings} in your settings is set to the address of Sourcegraph from the perspective of the language server (e.g. http://sourcegraph-frontend:30080 when running in Kubernetes).`,
+        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
+    ].join('\n')
+
     const connection = (await new Promise((resolve, reject) => {
-        const webSocket = new WebSocket(address)
-        const conn = createWebSocketConnection(wsrpc.toSocket(webSocket), new ConsoleLogger())
-        webSocket.addEventListener('open', () => resolve(conn))
-        webSocket.addEventListener('error', event =>
-            reject(new Error(`unable to connect to the Go language server at ${address}`))
-        )
+        try {
+            const webSocket = new WebSocket(address)
+            const conn = createWebSocketConnection(wsrpc.toSocket(webSocket), new ConsoleLogger())
+            webSocket.addEventListener('open', () => resolve(conn))
+            webSocket.addEventListener('error', event => reject(new Error(connectingToGoLangserverHelp)))
+        } catch (e) {
+            if ('message' in e && /Failed to construct/.test(e.message)) {
+                console.error(connectingToGoLangserverHelp)
+            }
+            reject(e)
+        }
     })) as rpc.MessageConnection
 
     connection.listen()
-
-    await connection.sendRequest(
-        new lsp.RequestType<
-            lsp.InitializeParams & {
-                originalRootUri: string
-                rootPath: string
-            },
-            lsp.InitializeResult,
-            lsp.InitializeError,
-            void
-        >('initialize') as any,
-        {
-            originalRootUri: root.href,
-            rootUri: 'file:///',
-            rootPath: '/',
-            initializationOptions: {
-                zipURL: constructZipURL({
-                    repoName: pathname(root.href).replace(/^\/+/, ''),
-                    revision: root.search.substr(1),
-                    token,
-                }),
-                zipURLTemplate: zipURLTemplate(token),
-            },
+    try {
+        await connection.sendRequest(
+            new lsp.RequestType<
+                lsp.InitializeParams & {
+                    originalRootUri: string
+                    rootPath: string
+                },
+                lsp.InitializeResult,
+                lsp.InitializeError,
+                void
+            >('initialize') as any,
+            {
+                originalRootUri: root.href,
+                rootUri: 'file:///',
+                rootPath: '/',
+                initializationOptions: {
+                    zipURL: constructZipURL({
+                        repoName: pathname(root.href).replace(/^\/+/, ''),
+                        revision: root.search.substr(1),
+                        token,
+                    }),
+                    zipURLTemplate: zipURLTemplate(token),
+                },
+            }
+        )
+    } catch (e) {
+        if ('message' in e && (/no such host/.test(e.message) || /i\/o timeout/.test(e.message))) {
+            console.error(connectingToSourcegraphHelp)
         }
-    )
+        throw e
+    }
 
     connection.sendNotification(lsp.InitializedNotification.type)
 
