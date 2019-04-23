@@ -745,6 +745,14 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
 
             await activateUsingWebSockets(ctx)
         } else {
+            ctx.subscriptions.add(
+                registerFeedbackButton({
+                    languageID: 'go',
+                    sourcegraph,
+                    isPrecise: false,
+                })
+            )
+
             activateBasicCodeIntel({
                 sourcegraph,
                 languageID: 'go',
