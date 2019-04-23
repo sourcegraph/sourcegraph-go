@@ -61,13 +61,14 @@ http {
 Add these to your Sourcegraph global settings:
 
 ```
-  "go.serverUrl": "ws://langserveruser:PASSWORD@host.docker.internal:7080/go",
-  "go.sourcegraphUrl": "http://host.docker.internal:7080",
+  "go.serverUrl": "ws://langserveruser:PASSWORD@example.host.docker.internal:7080/go",
+  "go.sourcegraphUrl": "http://example.host.docker.internal:7080",
 ```
 
 Fill in the `PASSWORD` that you created above.
 
-- If you're running the quickstart on Linux, change `host.docker.internal` to the output of `ip addr show docker0 | grep -Po 'inet \K[\d.]+'`.
+- If you're running the quickstart on macOS, change `example.host.docker.internal` to `host.docker.internal`.
+- If you're running the quickstart on Linux, change `example.host.docker.internal` to the output of `ip addr show docker0 | grep -Po 'inet \K[\d.]+'`.
 - If you're using [Kubernetes](#using-kubernetes) (e.g. [deploy-sourcegraph](https://github.com/sourcegraph/deploy-sourcegraph)):
   - `go.serverUrl` is the address of the Go language server from the perspective of a user's browser (e.g. https://sourcegraph.example.com/go)
   - `go.sourcegraphUrl` is the address of the Sourcegraph instance from the perspective of the Go language server (e.g. http://sourcegraph-frontend:30080)

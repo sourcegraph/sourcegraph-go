@@ -83,7 +83,20 @@
         "go.serverUrl": {
           "description": "The WebSocket language server to connect to",
           "type": "string",
-          "format": "url"
+          "format": "url",
+          "not": {
+            "type": "string",
+            "pattern": "example\\.host\\.docker\\.internal"
+          }
+        },
+        "go.sourcegraphUrl": {
+          "description": "the address of the Sourcegraph instance from the perspective of the Go language server",
+          "type": "string",
+          "format": "url",
+          "not": {
+            "type": "string",
+            "pattern": "example\\.host\\.docker\\.internal"
+          }
         },
         "go.accessToken": {
           "description": "The access token for the language server to use to fetch files from the Sourcegraph API. The extension will create this token and save it in your settings automatically.",
