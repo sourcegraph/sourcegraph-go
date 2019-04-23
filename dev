@@ -8,5 +8,5 @@ env FORCE_COLOR=0 \
     --names serve,build \
     --prefix name \
     --kill-others \
-    'yarn run serve | cat' \
+    'yarn run serve --no-cache | cat' \
     'yarn run watch:typecheck'

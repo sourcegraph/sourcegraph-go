@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { activateBasicCodeIntel } from '@sourcegraph/basic-code-intel'
+import { activateBasicCodeIntel, registerFeedbackButton } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
@@ -741,6 +741,8 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
         const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
         if (address) {
+            ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+
             await activateUsingWebSockets(ctx)
         } else {
             activateBasicCodeIntel({
