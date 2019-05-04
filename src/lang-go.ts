@@ -274,7 +274,7 @@ function rootURIFromDoc(doc: sourcegraph.TextDocument): URL {
 
 function repoNameFromDoc(doc: sourcegraph.TextDocument): string {
     const url = new URL(doc.uri)
-    return path.join(url.hostname, url.pathname.slice(1))
+    return path.posix.join(url.hostname, url.pathname.slice(1))
 }
 
 /**
