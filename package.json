@@ -58,6 +58,18 @@
           "description": "Submit code intel feedback",
           "iconURL": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBkPSJNMCAwaDI0djI0SDB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTExLjk5IDJDNi40NyAyIDIgNi40OCAyIDEyczQuNDcgMTAgOS45OSAxMEMxNy41MiAyMiAyMiAxNy41MiAyMiAxMlMxNy41MiAyIDExLjk5IDJ6TTEyIDIwYy00LjQyIDAtOC0zLjU4LTgtOHMzLjU4LTggOC04IDggMy41OCA4IDgtMy41OCA4LTggOHptMy41LTljLjgzIDAgMS41LS42NyAxLjUtMS41UzE2LjMzIDggMTUuNSA4IDE0IDguNjcgMTQgOS41cy42NyAxLjUgMS41IDEuNXptLTcgMGMuODMgMCAxLjUtLjY3IDEuNS0xLjVTOS4zMyA4IDguNSA4IDcgOC42NyA3IDkuNSA3LjY3IDExIDguNSAxMXptMy41IDYuNWMyLjMzIDAgNC4zMS0xLjQ2IDUuMTEtMy41SDYuODljLjggMi4wNCAyLjc4IDMuNSA1LjExIDMuNXoiLz48L3N2Zz4="
         }
+      },
+      {
+        "id": "error",
+        "command": "open",
+        "title": "${get(context, `codeIntel.error.message`)}",
+        "commandArguments": [
+          "${get(context, `codeIntel.error.link`)}"
+        ],
+        "actionItem": {
+          "description": "${get(context, `codeIntel.error.message`)}",
+          "iconURL": "data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgaWQ9ImVsXzZNY29hYTdIbCI+PHN0eWxlPkAtd2Via2l0LWtleWZyYW1lcyBrZl9lbF9rSEpMSGNuRkJfX2FuXzYyTk9qRWRVanswJXtvcGFjaXR5OiAxO301MCV7b3BhY2l0eTogMC41O30xMDAle29wYWNpdHk6IDE7fX1Aa2V5ZnJhbWVzIGtmX2VsX2tISkxIY25GQl9fYW5fNjJOT2pFZFVqezAle29wYWNpdHk6IDE7fTUwJXtvcGFjaXR5OiAwLjU7fTEwMCV7b3BhY2l0eTogMTt9fSNlbF82TWNvYWE3SGwgKnstd2Via2l0LWFuaW1hdGlvbi1kdXJhdGlvbjogMnM7YW5pbWF0aW9uLWR1cmF0aW9uOiAyczstd2Via2l0LWFuaW1hdGlvbi1pdGVyYXRpb24tY291bnQ6IGluZmluaXRlO2FuaW1hdGlvbi1pdGVyYXRpb24tY291bnQ6IGluZmluaXRlOy13ZWJraXQtYW5pbWF0aW9uLXRpbWluZy1mdW5jdGlvbjogY3ViaWMtYmV6aWVyKDAsIDAsIDEsIDEpO2FuaW1hdGlvbi10aW1pbmctZnVuY3Rpb246IGN1YmljLWJlemllcigwLCAwLCAxLCAxKTt9I2VsX055VUdfdXBrRWZ7ZmlsbDogbm9uZTt9I2VsX2tISkxIY25GQl97ZmlsbDogcmVkOy13ZWJraXQtYW5pbWF0aW9uLWZpbGwtbW9kZTogYmFja3dhcmRzO2FuaW1hdGlvbi1maWxsLW1vZGU6IGJhY2t3YXJkcztvcGFjaXR5OiAxOy13ZWJraXQtYW5pbWF0aW9uLW5hbWU6IGtmX2VsX2tISkxIY25GQl9fYW5fNjJOT2pFZFVqO2FuaW1hdGlvbi1uYW1lOiBrZl9lbF9rSEpMSGNuRkJfX2FuXzYyTk9qRWRVajstd2Via2l0LWFuaW1hdGlvbi10aW1pbmctZnVuY3Rpb246IGN1YmljLWJlemllcigwLCAwLCAxLCAxKTthbmltYXRpb24tdGltaW5nLWZ1bmN0aW9uOiBjdWJpYy1iZXppZXIoMCwgMCwgMSwgMSk7fTwvc3R5bGU+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgaWQ9ImVsX055VUdfdXBrRWYiLz48cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMSAxNWgtMnYtNmgydjZ6bTAtOGgtMlY3aDJ2MnoiIGlkPSJlbF9rSEpMSGNuRkJfIi8+PC9zdmc+"
+        }
       }
     ],
     "menus": {
@@ -65,6 +77,10 @@
         {
           "action": "feedback",
           "when": "showFeedback"
+        },
+        {
+          "action": "error",
+          "when": "showError"
         }
       ],
       "panel/toolbar": [
