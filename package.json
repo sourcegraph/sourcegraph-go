@@ -139,7 +139,7 @@
     "last 1 Safari versions"
   ],
   "devDependencies": {
-    "@sourcegraph/prettierrc": "^2.2.0",
+    "@sourcegraph/prettierrc": "^3.0.0",
     "@sourcegraph/tsconfig": "^4.0.0",
     "@sourcegraph/tslint-config": "^12.3.1",
     "@types/mkdirp-promise": "5.0.0",
