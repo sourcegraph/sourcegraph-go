@@ -566,6 +566,43 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 }
 
 /**
+ * Automatically registers/deregisters a provider based on the given predicate of the settings.
+ */
+function registerWhile({
+    register,
+    settings,
+    settingsPredicate,
+}: {
+    register: () => sourcegraph.Unsubscribable
+    settings: Observable<Settings>
+    settingsPredicate: (settings: Settings) => boolean
+}): sourcegraph.Unsubscribable {
+    let registration: sourcegraph.Unsubscribable | undefined
+    return from(settings)
+        .pipe(
+            map(settingsPredicate),
+            distinctUntilChanged(),
+            map(enabled => {
+                if (enabled) {
+                    registration = register()
+                } else {
+                    if (registration) {
+                        registration.unsubscribe()
+                        registration = undefined
+                    }
+                }
+            }),
+            finalize(() => {
+                if (registration) {
+                    registration.unsubscribe()
+                    registration = undefined
+                }
+            })
+        )
+        .subscribe()
+}
+
+/**
  * Uses WebSockets to communicate with a language server.
  */
 export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext): Promise<void> {
@@ -654,41 +691,6 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         })
     )
 
-    /**
-     * Automatically registers/deregisters a provider based on the given predicate of the settings.
-     */
-    function registerWhile({
-        register,
-        settingsPredicate,
-    }: {
-        register: () => sourcegraph.Unsubscribable
-        settingsPredicate: (settings: Settings) => boolean
-    }): sourcegraph.Unsubscribable {
-        let registration: sourcegraph.Unsubscribable | undefined
-        return from(settings)
-            .pipe(
-                map(settingsPredicate),
-                distinctUntilChanged(),
-                map(enabled => {
-                    if (enabled) {
-                        registration = register()
-                    } else {
-                        if (registration) {
-                            registration.unsubscribe()
-                            registration = undefined
-                        }
-                    }
-                }),
-                finalize(() => {
-                    if (registration) {
-                        registration.unsubscribe()
-                        registration = undefined
-                    }
-                })
-            )
-            .subscribe()
-    }
-
     ctx.subscriptions.add(
         registerWhile({
             register: () =>
@@ -703,6 +705,7 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
                             map(response => convert.xreferences({ references: response }))
                         ),
                 }),
+            settings,
             settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
         })
     )
@@ -742,6 +745,7 @@ const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
         if (!sourcegraph.configuration.get().get('lspclient')) {
+            console.log('old')
             const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
             if (address) {
                 ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
@@ -779,6 +783,8 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                 })(ctx)
             }
         } else {
+            console.log('lspclient')
+
             ctx.subscriptions.add(
                 registerFeedbackButton({
                     languageID: 'go',
@@ -808,7 +814,10 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                             },
                         }),
                         documentSelector: [{ language: 'go' }],
-                        clientToServerURI: (uri: URL) => new URL(`file:///${uri.hash.slice(1)}`),
+                        clientToServerURI: (uri: URL) => {
+                            return uri
+                        },
+                        // clientToServerURI: (uri: URL) => new URL(`file:///${uri.hash.slice(1)}`),
                         serverToClientURI: (uri, currentRootURI) => {
                             if (!currentRootURI) {
                                 return uri
@@ -826,7 +835,8 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                             const originalRootURI = rootURI.href
                             rootURI.hash = ''
                             return {
-                                originalRootURI,
+                                // originalRootURI,
+                                // TODO drop zipURL, keep zipURLTemplate (different PR)
                                 zipURL: constructZipURL({
                                     repoName: pathname(rootURI.href).replace(/^\/+/, ''),
                                     revision: rootURI.search.substr(1),
@@ -837,6 +847,34 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                         },
                     })
                     ctx.subscriptions.add(client)
+                    const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
+                    ctx.subscriptions.add(
+                        sourcegraph.configuration.subscribe(() => {
+                            settings.next(sourcegraph.configuration.get<Settings>().value)
+                        })
+                    )
+
+                    ctx.subscriptions.add(
+                        registerWhile({
+                            register: () =>
+                                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+                                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                                        xrefs({
+                                            doc,
+                                            pos,
+                                            sendRequest: ({ rootURI, requestType, request, useCache }) =>
+                                                client.withConnection(rootURI, conn =>
+                                                    conn.sendRequest(requestType, request)
+                                                ),
+                                        }).pipe(
+                                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                                            map(response => convert.xreferences({ references: response }))
+                                        ),
+                                }),
+                            settings,
+                            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
+                        })
+                    )
                 } else {
                     // console.log('No go.serverUrl set')
                 }
