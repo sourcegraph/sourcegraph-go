@@ -709,10 +709,10 @@
     rxjs "^6.3.3"
     sourcegraph "^23.0.0"
 
-"@sourcegraph/lsp-client@1.1.0-beta.2":
-  version "1.1.0-beta.2"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/lsp-client/-/lsp-client-1.1.0-beta.2.tgz#69e82aef44f74e6ab49f68b8cf9fb508531483d9"
-  integrity sha512-fdPb8zFV7WEXVBjaOajcrTkPlbT2BZD6JRqH2M5/qPGQRD2AOn8pV7tb7YHKpQv5or4iZFaFgTrcXQZEEOOQqw==
+"@sourcegraph/lsp-client@2.0.0-beta.2":
+  version "2.0.0-beta.2"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/lsp-client/-/lsp-client-2.0.0-beta.2.tgz#755363aed4bfc0d1860b5c82023e647c737c335e"
+  integrity sha512-u9kBLoU3cXEoWJkFmF53R2PjV5+WVFGcYbZr+jvxXaDm3igtZGmMcAr6KUX1e9t9S1foNnPJa/ukoXfTgHyZ7g==
   dependencies:
     "@sourcegraph/vscode-ws-jsonrpc" "^0.0.3-fork"
     lodash "^4.17.11"
