@@ -814,36 +814,8 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                             },
                         }),
                         documentSelector: [{ language: 'go' }],
-                        clientToServerURI: (uri: URL) => {
-                            return uri
-                        },
-                        // clientToServerURI: (uri: URL) => new URL(`file:///${uri.hash.slice(1)}`),
-                        serverToClientURI: (uri, currentRootURI) => {
-                            if (!currentRootURI) {
-                                return uri
-                            }
-
-                            if (/^file:\/\/\//.test(uri.href)) {
-                                // The definition is in a file in the same repo
-                                const docURL = new URL(currentRootURI.href)
-                                docURL.hash = uri.href.slice('file:///'.length)
-                                return docURL
-                            }
-                            return uri
-                        },
-                        additionalInitializationOptions: (rootURI: URL) => {
-                            const originalRootURI = rootURI.href
-                            rootURI.hash = ''
-                            return {
-                                // originalRootURI,
-                                // TODO drop zipURL, keep zipURLTemplate (different PR)
-                                zipURL: constructZipURL({
-                                    repoName: pathname(rootURI.href).replace(/^\/+/, ''),
-                                    revision: rootURI.search.substr(1),
-                                    token,
-                                }),
-                                zipURLTemplate: zipURLTemplate(token),
-                            }
+                        initializationOptions: {
+                            zipURLTemplate: zipURLTemplate(token),
                         },
                     })
                     ctx.subscriptions.add(client)
