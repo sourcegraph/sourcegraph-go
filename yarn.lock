@@ -709,24 +709,24 @@
     rxjs "^6.3.3"
     sourcegraph "^23.0.0"
 
-"@sourcegraph/prettierrc@^3.0.0":
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/prettierrc/-/prettierrc-3.0.0.tgz#716b64b287565f98f539f76bea206912ab4d03b3"
-  integrity sha512-ziLujsC3IESHGYdtiJ7yVjte9i7mr6jKWTYtCVqgOWeY1Er0/xsQ/sdZIyK61tD282wvd7VjS4pk5RoGEN7biw==
-
-"@sourcegraph/lsp-client@^2.0.0-beta.1":
-  version "2.0.0-beta.1"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/lsp-client/-/lsp-client-2.0.0-beta.1.tgz#d231d8caba53a1ff70de20f7b442c2ea439d3b37"
-  integrity sha512-hho0weMoCxKk96hYkj4re7B6JxY+NccfUm2pgv0+YUKBDWRijqO8sqlgOsN8tl+H1s7UjvE7xw//cENI1N+NGA==
+"@sourcegraph/lsp-client@1.1.0-beta.2":
+  version "1.1.0-beta.2"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/lsp-client/-/lsp-client-1.1.0-beta.2.tgz#69e82aef44f74e6ab49f68b8cf9fb508531483d9"
+  integrity sha512-fdPb8zFV7WEXVBjaOajcrTkPlbT2BZD6JRqH2M5/qPGQRD2AOn8pV7tb7YHKpQv5or4iZFaFgTrcXQZEEOOQqw==
   dependencies:
     "@sourcegraph/vscode-ws-jsonrpc" "^0.0.3-fork"
     lodash "^4.17.11"
     rxjs "^6.4.0"
-    sourcegraph "^22.0.0"
+    sourcegraph "^23.0.1"
     type-zoo "^3.2.1"
     uuid "^3.3.2"
     vscode-languageserver-protocol "^3.14.1"
     vscode-languageserver-types "^3.14.0"
+
+"@sourcegraph/prettierrc@^3.0.0":
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/prettierrc/-/prettierrc-3.0.0.tgz#716b64b287565f98f539f76bea206912ab4d03b3"
+  integrity sha512-ziLujsC3IESHGYdtiJ7yVjte9i7mr6jKWTYtCVqgOWeY1Er0/xsQ/sdZIyK61tD282wvd7VjS4pk5RoGEN7biw==
 
 "@sourcegraph/tsconfig@^4.0.0":
   version "4.0.0"
@@ -5080,15 +5080,15 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   dependencies:
     vscode-languageserver-types "^3.12.0"
 
-sourcegraph@^22.0.0:
-  version "22.0.0"
-  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-22.0.0.tgz#b259929c31bf367f5160056698a881dc26eb36bd"
-  integrity sha512-cJHby0OPCM0y0BmRTKhY89D02f9koROluHMJGQGNE8q9CoIVbe1s6ctHCytz7bjY9mKtCpQMbtxYQhfIm5S4lg==
-
 sourcegraph@^23.0.0:
   version "23.0.0"
   resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-23.0.0.tgz#1fb96015af3e84cc9cc2944823f04a7e952ed565"
   integrity sha512-hQALHrTt+AK5ZAqUAUNhxO7ClSv/xyTjMQPBb+hQykKJrMaHTk+CnJNHs7dRfXYKnbnZeisQRjaxKGX8UecU0Q==
+
+sourcegraph@^23.0.1:
+  version "23.0.1"
+  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-23.0.1.tgz#715fcf4129a6d94bc3bfd2740d9c706ae6357ffe"
+  integrity sha512-4We7zqhOagOVxNFdS6/xT/Crhb0Arw/9ytGBu8JuHfjo5yjMtcUYt22kZyu2TaPHXwyPW9muUi1eKSFA6Qg4lw==
 
 spawn-command@^0.0.2-1:
   version "0.0.2-1"
