@@ -483,7 +483,12 @@ function xrefs({
         const definitions = (await sendRequest({
             rootURI: rootURIFromDoc(doc),
             requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-            request: positionParams(doc, pos),
+            request: {
+                textDocument: {
+                    uri: doc.uri,
+                },
+                position: pos,
+            },
             useCache: true,
         })) as lspext.Xdefinition[] | null
         if (!definitions) {
@@ -551,18 +556,6 @@ function xrefs({
         ),
         concatMap(references => references)
     )
-}
-
-function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): lsp.TextDocumentPositionParams {
-    return {
-        textDocument: {
-            uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-        },
-        position: {
-            line: pos.line,
-            character: pos.character,
-        },
-    }
 }
 
 /**
@@ -650,7 +643,12 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         sendRequest({
             rootURI: rootURIFromDoc(doc),
             requestType: ty,
-            request: positionParams(doc, pos),
+            request: {
+                textDocument: {
+                    uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
+                },
+                position: pos,
+            },
             useCache,
         })
 
