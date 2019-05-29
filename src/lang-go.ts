@@ -28,6 +28,7 @@ import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
 import { TextDocument } from 'sourcegraph'
+import { NoopLogger } from '@sourcegraph/lsp-client/dist/logging'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -598,7 +599,9 @@ function registerWhile({
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext): Promise<void> {
+export async function activatePreciseDeprecated(ctx: sourcegraph.ExtensionContext): Promise<void> {
+    ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+
     const accessToken = await getOrTryToCreateAccessToken()
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     ctx.subscriptions.add(
@@ -730,6 +733,94 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
     ctx.subscriptions.add(panelView)
 }
 
+function activateImprecise(ctx: sourcegraph.ExtensionContext): void {
+    ctx.subscriptions.add(
+        registerFeedbackButton({
+            languageID: 'go',
+            sourcegraph,
+            isPrecise: false,
+        })
+    )
+
+    activateBasicCodeIntel({
+        sourcegraph,
+        languageID: 'go',
+        fileExts: ['go'],
+        filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
+            const currentFileImportedPaths = fileContent
+                .split('\n')
+                .map(line => {
+                    // Matches the import at index 3
+                    const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                    return match ? match[3] : undefined
+                })
+                .filter((x): x is string => Boolean(x))
+
+            const currentFileImportPath = repo + '/' + path.dirname(filePath)
+
+            const filteredResults = results.filter(result => {
+                const resultImportPath = result.repo + '/' + path.dirname(result.file)
+                return (
+                    currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
+                    resultImportPath === currentFileImportPath
+                )
+            })
+
+            return filteredResults.length === 0 ? results : filteredResults
+        },
+        commentStyle: {
+            lineRegex: /\/\/\s?/,
+        },
+    })(ctx)
+}
+
+async function activatePreciseUsingLspClient(ctx: sourcegraph.ExtensionContext): Promise<void> {
+    ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+
+    const token = await getOrTryToCreateAccessToken()
+
+    const serverURL = sourcegraph.configuration.get<Settings>().value['go.serverUrl']
+    const client = await lspClient.register({
+        sourcegraph,
+        transport: lspClient.webSocketTransport({
+            serverUrl: serverURL!,
+            logger: new NoopLogger(),
+        }),
+        documentSelector: [{ language: 'go' }],
+        initializationOptions: {
+            zipURLTemplate: zipURLTemplate(token),
+        },
+    })
+    ctx.subscriptions.add(client)
+
+    const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
+    ctx.subscriptions.add(
+        sourcegraph.configuration.subscribe(() => {
+            settings.next(sourcegraph.configuration.get<Settings>().value)
+        })
+    )
+
+    ctx.subscriptions.add(
+        registerWhile({
+            register: () =>
+                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                        xrefs({
+                            doc,
+                            pos,
+                            sendRequest: ({ rootURI, requestType, request, useCache }) =>
+                                client.withConnection(rootURI, conn => conn.sendRequest(requestType, request)),
+                        }).pipe(
+                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                            map(response => convert.xreferences({ references: response }))
+                        ),
+                }),
+            settings,
+            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
+        })
+    )
+}
+
 function pathname(url: string): string {
     let pathname = url
     pathname = pathname.slice('git://'.length)
@@ -741,115 +832,15 @@ function pathname(url: string): string {
 const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
-    async function afterActivate(): Promise<void> {
-        if (!sourcegraph.configuration.get().get('lspclient')) {
-            console.log('old')
-            const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
-            if (address) {
-                ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
-                await activateUsingWebSockets(ctx)
+    setTimeout(async function afterActivate(): Promise<void> {
+        if (sourcegraph.configuration.get<Settings>().get('go.serverUrl')) {
+            if (sourcegraph.configuration.get().get('lspclient')) {
+                await activatePreciseUsingLspClient(ctx)
             } else {
-                activateBasicCodeIntel({
-                    sourcegraph,
-                    languageID: 'go',
-                    fileExts: ['go'],
-                    filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
-                        const currentFileImportedPaths = fileContent
-                            .split('\n')
-                            .map(line => {
-                                // Matches the import at index 3
-                                const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
-                                return match ? match[3] : undefined
-                            })
-                            .filter((x): x is string => Boolean(x))
-
-                        const currentFileImportPath = repo + '/' + path.dirname(filePath)
-
-                        const filteredResults = results.filter(result => {
-                            const resultImportPath = result.repo + '/' + path.dirname(result.file)
-                            return (
-                                currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
-                                resultImportPath === currentFileImportPath
-                            )
-                        })
-
-                        return filteredResults.length === 0 ? results : filteredResults
-                    },
-                    commentStyle: {
-                        lineRegex: /\/\/\s?/,
-                    },
-                })(ctx)
+                await activatePreciseDeprecated(ctx)
             }
         } else {
-            console.log('lspclient')
-
-            ctx.subscriptions.add(
-                registerFeedbackButton({
-                    languageID: 'go',
-                    sourcegraph,
-                    isPrecise: false,
-                })
-            )
-
-            const token = await getOrTryToCreateAccessToken()
-            if (!token) {
-                // console.log('No token')
-            } else {
-                // tslint:disable-next-line: no-empty
-                const noop = () => {}
-
-                const serverURL = sourcegraph.configuration.get<Settings>().value['go.serverUrl']
-                if (serverURL) {
-                    const client = await lspClient.register({
-                        sourcegraph,
-                        transport: lspClient.webSocketTransport({
-                            serverUrl: serverURL,
-                            logger: {
-                                error: noop,
-                                warn: noop,
-                                info: noop,
-                                log: noop,
-                            },
-                        }),
-                        documentSelector: [{ language: 'go' }],
-                        initializationOptions: {
-                            zipURLTemplate: zipURLTemplate(token),
-                        },
-                    })
-                    ctx.subscriptions.add(client)
-                    const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
-                    ctx.subscriptions.add(
-                        sourcegraph.configuration.subscribe(() => {
-                            settings.next(sourcegraph.configuration.get<Settings>().value)
-                        })
-                    )
-
-                    ctx.subscriptions.add(
-                        registerWhile({
-                            register: () =>
-                                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-                                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-                                        xrefs({
-                                            doc,
-                                            pos,
-                                            sendRequest: ({ rootURI, requestType, request, useCache }) =>
-                                                client.withConnection(rootURI, conn =>
-                                                    conn.sendRequest(requestType, request)
-                                                ),
-                                        }).pipe(
-                                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
-                                            map(response => convert.xreferences({ references: response }))
-                                        ),
-                                }),
-                            settings,
-                            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
-                        })
-                    )
-                } else {
-                    // console.log('No go.serverUrl set')
-                }
-            }
+            activateImprecise(ctx)
         }
-    }
-    setTimeout(afterActivate, 100)
+    }, 100)
 }
