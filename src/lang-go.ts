@@ -1,3 +1,4 @@
+import * as lspClient from '@sourcegraph/lsp-client'
 import '@babel/polyfill'
 
 import { activateBasicCodeIntel, registerFeedbackButton } from '@sourcegraph/basic-code-intel'
@@ -26,6 +27,8 @@ import {
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
+import { TextDocument } from 'sourcegraph'
+import { NoopLogger } from '@sourcegraph/lsp-client/dist/logging'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -481,7 +484,12 @@ function xrefs({
         const definitions = (await sendRequest({
             rootURI: rootURIFromDoc(doc),
             requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-            request: positionParams(doc, pos),
+            request: {
+                textDocument: {
+                    uri: doc.uri,
+                },
+                position: pos,
+            },
             useCache: true,
         })) as lspext.Xdefinition[] | null
         if (!definitions) {
@@ -551,22 +559,49 @@ function xrefs({
     )
 }
 
-function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): lsp.TextDocumentPositionParams {
-    return {
-        textDocument: {
-            uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
-        },
-        position: {
-            line: pos.line,
-            character: pos.character,
-        },
-    }
+/**
+ * Automatically registers/deregisters a provider based on the given predicate of the settings.
+ */
+function registerWhile({
+    register,
+    settings,
+    settingsPredicate,
+}: {
+    register: () => sourcegraph.Unsubscribable
+    settings: Observable<Settings>
+    settingsPredicate: (settings: Settings) => boolean
+}): sourcegraph.Unsubscribable {
+    let registration: sourcegraph.Unsubscribable | undefined
+    return from(settings)
+        .pipe(
+            map(settingsPredicate),
+            distinctUntilChanged(),
+            map(enabled => {
+                if (enabled) {
+                    registration = register()
+                } else {
+                    if (registration) {
+                        registration.unsubscribe()
+                        registration = undefined
+                    }
+                }
+            }),
+            finalize(() => {
+                if (registration) {
+                    registration.unsubscribe()
+                    registration = undefined
+                }
+            })
+        )
+        .subscribe()
 }
 
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext): Promise<void> {
+export async function activatePreciseDeprecated(ctx: sourcegraph.ExtensionContext): Promise<void> {
+    ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+
     const accessToken = await getOrTryToCreateAccessToken()
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     ctx.subscriptions.add(
@@ -611,7 +646,12 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         sendRequest({
             rootURI: rootURIFromDoc(doc),
             requestType: ty,
-            request: positionParams(doc, pos),
+            request: {
+                textDocument: {
+                    uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
+                },
+                position: pos,
+            },
             useCache,
         })
 
@@ -652,41 +692,6 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         })
     )
 
-    /**
-     * Automatically registers/deregisters a provider based on the given predicate of the settings.
-     */
-    function registerWhile({
-        register,
-        settingsPredicate,
-    }: {
-        register: () => sourcegraph.Unsubscribable
-        settingsPredicate: (settings: Settings) => boolean
-    }): sourcegraph.Unsubscribable {
-        let registration: sourcegraph.Unsubscribable | undefined
-        return from(settings)
-            .pipe(
-                map(settingsPredicate),
-                distinctUntilChanged(),
-                map(enabled => {
-                    if (enabled) {
-                        registration = register()
-                    } else {
-                        if (registration) {
-                            registration.unsubscribe()
-                            registration = undefined
-                        }
-                    }
-                }),
-                finalize(() => {
-                    if (registration) {
-                        registration.unsubscribe()
-                        registration = undefined
-                    }
-                })
-            )
-            .subscribe()
-    }
-
     ctx.subscriptions.add(
         registerWhile({
             register: () =>
@@ -701,6 +706,7 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
                             map(response => convert.xreferences({ references: response }))
                         ),
                 }),
+            settings,
             settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
         })
     )
@@ -727,6 +733,94 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
     ctx.subscriptions.add(panelView)
 }
 
+function activateImprecise(ctx: sourcegraph.ExtensionContext): void {
+    ctx.subscriptions.add(
+        registerFeedbackButton({
+            languageID: 'go',
+            sourcegraph,
+            isPrecise: false,
+        })
+    )
+
+    activateBasicCodeIntel({
+        sourcegraph,
+        languageID: 'go',
+        fileExts: ['go'],
+        filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
+            const currentFileImportedPaths = fileContent
+                .split('\n')
+                .map(line => {
+                    // Matches the import at index 3
+                    const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                    return match ? match[3] : undefined
+                })
+                .filter((x): x is string => Boolean(x))
+
+            const currentFileImportPath = repo + '/' + path.dirname(filePath)
+
+            const filteredResults = results.filter(result => {
+                const resultImportPath = result.repo + '/' + path.dirname(result.file)
+                return (
+                    currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
+                    resultImportPath === currentFileImportPath
+                )
+            })
+
+            return filteredResults.length === 0 ? results : filteredResults
+        },
+        commentStyle: {
+            lineRegex: /\/\/\s?/,
+        },
+    })(ctx)
+}
+
+async function activatePreciseUsingLspClient(ctx: sourcegraph.ExtensionContext): Promise<void> {
+    ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
+
+    const token = await getOrTryToCreateAccessToken()
+
+    const serverURL = sourcegraph.configuration.get<Settings>().value['go.serverUrl']
+    const client = await lspClient.register({
+        sourcegraph,
+        transport: lspClient.webSocketTransport({
+            serverUrl: serverURL!,
+            logger: new NoopLogger(),
+        }),
+        documentSelector: [{ language: 'go' }],
+        initializationOptions: {
+            zipURLTemplate: zipURLTemplate(token),
+        },
+    })
+    ctx.subscriptions.add(client)
+
+    const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
+    ctx.subscriptions.add(
+        sourcegraph.configuration.subscribe(() => {
+            settings.next(sourcegraph.configuration.get<Settings>().value)
+        })
+    )
+
+    ctx.subscriptions.add(
+        registerWhile({
+            register: () =>
+                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                        xrefs({
+                            doc,
+                            pos,
+                            sendRequest: ({ rootURI, requestType, request, useCache }) =>
+                                client.withConnection(rootURI, conn => conn.sendRequest(requestType, request)),
+                        }).pipe(
+                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                            map(response => convert.xreferences({ references: response }))
+                        ),
+                }),
+            settings,
+            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
+        })
+    )
+}
+
 function pathname(url: string): string {
     let pathname = url
     pathname = pathname.slice('git://'.length)
@@ -738,52 +832,15 @@ function pathname(url: string): string {
 const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
-    async function afterActivate(): Promise<void> {
-        const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
-        if (address) {
-            ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
-
-            await activateUsingWebSockets(ctx)
+    setTimeout(async function afterActivate(): Promise<void> {
+        if (sourcegraph.configuration.get<Settings>().get('go.serverUrl')) {
+            if (sourcegraph.configuration.get().get('lspclient')) {
+                await activatePreciseUsingLspClient(ctx)
+            } else {
+                await activatePreciseDeprecated(ctx)
+            }
         } else {
-            ctx.subscriptions.add(
-                registerFeedbackButton({
-                    languageID: 'go',
-                    sourcegraph,
-                    isPrecise: false,
-                })
-            )
-
-            activateBasicCodeIntel({
-                sourcegraph,
-                languageID: 'go',
-                fileExts: ['go'],
-                filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
-                    const currentFileImportedPaths = fileContent
-                        .split('\n')
-                        .map(line => {
-                            // Matches the import at index 3
-                            const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
-                            return match ? match[3] : undefined
-                        })
-                        .filter((x): x is string => Boolean(x))
-
-                    const currentFileImportPath = repo + '/' + path.dirname(filePath)
-
-                    const filteredResults = results.filter(result => {
-                        const resultImportPath = result.repo + '/' + path.dirname(result.file)
-                        return (
-                            currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
-                            resultImportPath === currentFileImportPath
-                        )
-                    })
-
-                    return filteredResults.length === 0 ? results : filteredResults
-                },
-                commentStyle: {
-                    lineRegex: /\/\/\s?/,
-                },
-            })(ctx)
+            activateImprecise(ctx)
         }
-    }
-    setTimeout(afterActivate, 100)
+    }, 100)
 }

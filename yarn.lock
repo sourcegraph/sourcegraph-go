@@ -709,6 +709,20 @@
     rxjs "^6.3.3"
     sourcegraph "^23.0.0"
 
+"@sourcegraph/lsp-client@2.0.0-beta.2":
+  version "2.0.0-beta.2"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/lsp-client/-/lsp-client-2.0.0-beta.2.tgz#755363aed4bfc0d1860b5c82023e647c737c335e"
+  integrity sha512-u9kBLoU3cXEoWJkFmF53R2PjV5+WVFGcYbZr+jvxXaDm3igtZGmMcAr6KUX1e9t9S1foNnPJa/ukoXfTgHyZ7g==
+  dependencies:
+    "@sourcegraph/vscode-ws-jsonrpc" "^0.0.3-fork"
+    lodash "^4.17.11"
+    rxjs "^6.4.0"
+    sourcegraph "^23.0.1"
+    type-zoo "^3.2.1"
+    uuid "^3.3.2"
+    vscode-languageserver-protocol "^3.14.1"
+    vscode-languageserver-types "^3.14.0"
+
 "@sourcegraph/prettierrc@^3.0.0":
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/@sourcegraph/prettierrc/-/prettierrc-3.0.0.tgz#716b64b287565f98f539f76bea206912ab4d03b3"
@@ -728,7 +742,7 @@
     tslint-config-prettier "^1.6.0"
     tslint-react "^3.2.0"
 
-"@sourcegraph/vscode-ws-jsonrpc@0.0.3-fork":
+"@sourcegraph/vscode-ws-jsonrpc@0.0.3-fork", "@sourcegraph/vscode-ws-jsonrpc@^0.0.3-fork":
   version "0.0.3-fork"
   resolved "https://registry.yarnpkg.com/@sourcegraph/vscode-ws-jsonrpc/-/vscode-ws-jsonrpc-0.0.3-fork.tgz#83728a14616ef0587298e7849d960b61853a9954"
   integrity sha512-EJLq/ni66glk3xYyOZtUIEbjTCw8kMI6RvO0YQtPd+4um2+aTSM1LfN4NrsiVrRkG7EG/U2OkFlKqT8mGo6w4Q==
@@ -4834,7 +4848,7 @@ rxjs-tslint-rules@^4.12.0:
     tslib "^1.8.0"
     tsutils "^3.0.0"
 
-rxjs@^6.3.3:
+rxjs@^6.3.3, rxjs@^6.4.0:
   version "6.4.0"
   resolved "https://registry.yarnpkg.com/rxjs/-/rxjs-6.4.0.tgz#f3bb0fe7bda7fb69deac0c16f17b50b0b8790504"
   integrity sha512-Z9Yfa11F6B9Sg/BK9MnqnQ+aQYicPLtilXBp2yUtDt2JRCE0h26d33EnfO3ZxoNxG0T92OUucP3Ct7cpfkdFfw==
@@ -5070,6 +5084,11 @@ sourcegraph@^23.0.0:
   version "23.0.0"
   resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-23.0.0.tgz#1fb96015af3e84cc9cc2944823f04a7e952ed565"
   integrity sha512-hQALHrTt+AK5ZAqUAUNhxO7ClSv/xyTjMQPBb+hQykKJrMaHTk+CnJNHs7dRfXYKnbnZeisQRjaxKGX8UecU0Q==
+
+sourcegraph@^23.0.1:
+  version "23.0.1"
+  resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-23.0.1.tgz#715fcf4129a6d94bc3bfd2740d9c706ae6357ffe"
+  integrity sha512-4We7zqhOagOVxNFdS6/xT/Crhb0Arw/9ytGBu8JuHfjo5yjMtcUYt22kZyu2TaPHXwyPW9muUi1eKSFA6Qg4lw==
 
 spawn-command@^0.0.2-1:
   version "0.0.2-1"
@@ -5482,6 +5501,11 @@ type-check@~0.3.2:
   dependencies:
     prelude-ls "~1.1.2"
 
+type-zoo@^3.2.1:
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/type-zoo/-/type-zoo-3.3.0.tgz#d5b59393b09a48ac30380c50e2369e828817e9b3"
+  integrity sha512-ID2kIg4QMbujPOpphFvSl7yyk0JaN2+5m2cprhxpzJqYWHhozLbYOHCAZqq7j1PPfzLe8XrYeZfPb99v96WVRw==
+
 typedarray@^0.0.6:
   version "0.0.6"
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
@@ -5599,6 +5623,11 @@ util@0.10.3, util@^0.10.3:
   dependencies:
     inherits "2.0.1"
 
+uuid@^3.3.2:
+  version "3.3.2"
+  resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.3.2.tgz#1b4af4955eb3077c501c23872fc6513811587131"
+  integrity sha512-yXJmeNaw3DnnKAOKJE51sL/ZaYfWJRl1pK9dr19YFCu0ObS231AB1/LbqTKRAQ5kw8A90rA6fr4riOUpTZvQZA==
+
 v8-compile-cache@^2.0.0:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/v8-compile-cache/-/v8-compile-cache-2.0.2.tgz#a428b28bb26790734c4fc8bc9fa106fccebf6a6c"
@@ -5642,7 +5671,7 @@ vscode-languageserver-protocol@^3.14.1:
     vscode-jsonrpc "^4.0.0"
     vscode-languageserver-types "3.14.0"
 
-vscode-languageserver-types@3.14.0, vscode-languageserver-types@^3.12.0:
+vscode-languageserver-types@3.14.0, vscode-languageserver-types@^3.12.0, vscode-languageserver-types@^3.14.0:
   version "3.14.0"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.14.0.tgz#d3b5952246d30e5241592b6dde8280e03942e743"
   integrity sha512-lTmS6AlAlMHOvPQemVwo3CezxBp0sNB95KNPkqp3Nxd5VFEnuG1ByM0zlRWos0zjO3ZWtkvhal0COgiV1xIA4A==
