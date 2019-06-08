@@ -721,7 +721,7 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         })
     )
     const panelView = sourcegraph.app.createPanelView(IMPL_ID)
-    panelView.title = 'Go ifaces/impls'
+    panelView.title = 'Interfaces'
     panelView.component = { locationProvider: IMPL_ID }
     panelView.priority = 160
     ctx.subscriptions.add(panelView)
