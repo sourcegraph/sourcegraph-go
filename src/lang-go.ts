@@ -21,6 +21,7 @@ import {
     switchMap,
     take,
     finalize,
+    filter,
 } from 'rxjs/operators'
 
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
@@ -189,31 +190,22 @@ async function tryToCreateAccessToken(): Promise<string | undefined> {
 }
 
 async function connectAndInitialize(
-    address: string,
+    address: URL,
     root: URL,
     token: string | undefined
 ): Promise<rpc.MessageConnection> {
-    const connectingToGoLangserverHelp = [
-        `Unable to connect to the Go language server at ${address}.`,
-        `Make sure ${'go.address' as keyof Settings} in your Sourcegraph settings is set to the address of the language server (e.g. wss://sourcegraph.example.com/go).`,
-        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
-    ].join('\n')
-
-    const connectingToSourcegraphHelp = [
-        `The Go language server running on ${address} was unable to fetch repository contents from Sourcegraph running on ${sourcegraphURL()}.`,
-        `Make sure ${'go.sourcegraphUrl' as keyof Settings} in your settings is set to the address of Sourcegraph from the perspective of the language server (e.g. http://sourcegraph-frontend:30080 when running in Kubernetes).`,
-        `Read the full documentation for more information: https://github.com/sourcegraph/sourcegraph-go`,
-    ].join('\n')
-
-    const connection = (await new Promise((resolve, reject) => {
+    const connection = (await new Promise<wsrpc.MessageConnection>((resolve, reject) => {
         try {
-            const webSocket = new WebSocket(address)
+            const webSocket = new WebSocket(address.href)
             const conn = createWebSocketConnection(wsrpc.toSocket(webSocket), new ConsoleLogger())
             webSocket.addEventListener('open', () => resolve(conn))
-            webSocket.addEventListener('error', event => reject(new Error(connectingToGoLangserverHelp)))
+            webSocket.addEventListener('error', event => {
+                notifyUnableToConnectToLanguageServer(address)
+                reject(event)
+            })
         } catch (e) {
             if ('message' in e && /Failed to construct/.test(e.message)) {
-                console.error(connectingToGoLangserverHelp)
+                notifyUnableToConnectToLanguageServer(address)
             }
             reject(e)
         }
@@ -246,8 +238,11 @@ async function connectAndInitialize(
             }
         )
     } catch (e) {
-        if ('message' in e && (/no such host/.test(e.message) || /i\/o timeout/.test(e.message))) {
-            console.error(connectingToSourcegraphHelp)
+        if (
+            'message' in e &&
+            (/no such host/.test(e.message) || /i\/o timeout/.test(e.message) || /connection refused/.test(e.message))
+        ) {
+            notifyLanguageServerUnableToConnectToSourcegraph()
         }
         throw e
     }
@@ -286,7 +281,7 @@ function repoNameFromDoc(doc: sourcegraph.TextDocument): string {
  * Internally, this maintains a mapping from rootURI to the connection
  * associated with that rootURI, so it supports multiple roots (untested).
  */
-function mkSendRequest(address: string, token: string | undefined): Observable<SendRequest> {
+function mkSendRequest(address: URL, token: string | undefined): Observable<SendRequest> {
     const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
     async function connectionFor(root: URL): Promise<rpc.MessageConnection> {
         if (rootURIToConnection[root.href]) {
@@ -563,6 +558,121 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
     }
 }
 
+function notifyUnableToConnectToLanguageServer(address: URL): void {
+    sourcegraph.internal.updateContext({
+        showError: true,
+        'codeIntel.error.message': 'Error in language server setup. Click to open documentation.',
+        'codeIntel.error.link': 'https://sourcegraph.com/extensions/sourcegraph/go',
+    })
+    const portByProtocol: { [protocol: string]: string } = { 'wss:': '443', 'ws:': '80' }
+    sourcegraph.app.activeWindow!.showNotification(
+        [
+            '**❌ Unable to access to the Go language server**',
+            '',
+            'Your browser could not access:',
+            '',
+            '```',
+            `"go.serverUrl": "${address}"`,
+            '```',
+            '',
+            ...(['ws:', 'wss:'].includes(address.protocol)
+                ? [
+                      'Troubleshoot using these commands:',
+                      '',
+                      `- **\`ping ${address.hostname}\`**`,
+                      `- **\`telnet ${address.hostname} ${address.port || portByProtocol[address.protocol]}\`**`,
+                      '',
+                  ]
+                : [
+                      `The protocol **\`${
+                          address.protocol
+                      }\`** is invalid. Only **\`ws:\`** or **\`wss:\`** are valid.`,
+                      '',
+                  ]),
+            '',
+            `To apply the fix:`,
+            '',
+            `- Correct the value in your [global settings](${
+                sourcegraph.internal.sourcegraphURL
+            }site-admin/global-settings).`,
+            '',
+            'To temporarily disable:',
+            '',
+            `- Comment out **\`go.serverUrl\`** in your [global settings](${
+                sourcegraph.internal.sourcegraphURL
+            }site-admin/global-settings).`,
+        ].join('\n')
+    )
+}
+
+function notifyLanguageServerUnableToConnectToSourcegraph(): void {
+    sourcegraph.internal.updateContext({
+        showError: true,
+        'codeIntel.error.message': 'Error in language server setup. Click to open documentation.',
+        'codeIntel.error.link': 'https://sourcegraph.com/extensions/sourcegraph/go',
+    })
+    sourcegraph.app.activeWindow!.showNotification(
+        [
+            '**❌ Error in Go language server setup**',
+            '',
+            `The Go language server was unable to fetch repository contents from Sourcegraph at:`,
+            '',
+            '```',
+            `"go.sourcegraphUrl": "${sourcegraphURL()}"`,
+            '```',
+            '',
+            'To troubleshoot this, **`docker exec`** into the go-langserver container and run:',
+            '',
+            `- **\`ping ${sourcegraphURL().hostname}\`**`,
+            `- **\`curl ${sourcegraphURL()}\`**`,
+            '',
+            `To apply the fix:`,
+            '',
+            `- Correct the value in your [global settings](${
+                sourcegraph.internal.sourcegraphURL
+            }site-admin/global-settings).`,
+            '',
+            'To temporarily disable:',
+            '',
+            `- Comment out **\`go.serverUrl\`** in your [global settings](${
+                sourcegraph.internal.sourcegraphURL
+            }site-admin/global-settings).`,
+        ].join('\n')
+    )
+}
+
+async function canary(address: URL): Promise<void> {
+    const data = await queryGraphQL('{currentUser{siteAdmin}}')
+    if (!data || !data.currentUser || data.currentUser.siteAdmin === undefined) {
+        console.log(
+            'Failed to determine whether or not the current user is an admin. Check the Network tab to see what went wrong.'
+        )
+        return
+    }
+    if (!data.currentUser.siteAdmin) {
+        // Don't show these notifications to normal users because they don't
+        // have access to global settings, and therefore can't fix this for all
+        // users.
+        return
+    }
+
+    try {
+        await new Promise<void>((resolve, reject) => {
+            let webSocket: WebSocket
+            try {
+                webSocket = new WebSocket(address.href)
+            } catch (e) {
+                notifyUnableToConnectToLanguageServer(address)
+                return
+            }
+            webSocket.addEventListener('open', () => resolve())
+            webSocket.addEventListener('error', error => reject(error))
+        })
+    } catch (e) {
+        notifyUnableToConnectToLanguageServer(address)
+    }
+}
+
 /**
  * Uses WebSockets to communicate with a language server.
  */
@@ -574,7 +684,23 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
             settings.next(sourcegraph.configuration.get<Settings>().value)
         })
     )
-    const langserverAddress = settings.pipe(map(settings => settings['go.serverUrl']))
+    const langserverAddress = settings.pipe(
+        map(settings => settings['go.serverUrl']),
+        concatMap(address => {
+            if (address === undefined) {
+                return [undefined]
+            }
+            try {
+                return [new URL(address)]
+            } catch (e) {
+                return []
+            }
+        })
+    )
+
+    ctx.subscriptions.add(
+        langserverAddress.pipe(filter((x: URL | undefined): x is URL => Boolean(x))).subscribe(url => canary(url))
+    )
 
     const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'go.address' as keyof Settings}": "wss://example.com" to your settings.`
 
