@@ -683,6 +683,12 @@ interface Providers {
     references: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Location[] | null>
 }
 
+const noopMaybeProviders = {
+    hover: () => Promise.resolve(undefined),
+    definition: () => Promise.resolve(undefined),
+    references: () => Promise.resolve(undefined),
+}
+
 /**
  * Uses WebSockets to communicate with a language server.
  */
@@ -696,11 +702,7 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
     const accessToken = await getOrTryToCreateAccessToken()
     const langserverAddress = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
     if (!langserverAddress) {
-        return {
-            hover: () => Promise.resolve(undefined),
-            definition: () => Promise.resolve(undefined),
-            references: () => Promise.resolve(undefined),
-        }
+        return noopMaybeProviders
     }
 
     const unsubscribableSendRequest = mkSendRequest<any>(langserverAddress, accessToken)
@@ -803,7 +805,7 @@ const goFiles = [{ pattern: '*.go' }]
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
         const lsif = initLSIF()
-        const lsp = await initLSP(ctx)
+        const lsp = await initLSP(ctx).catch(() => noopMaybeProviders)
         const basicCodeIntel = initBasicCodeIntel()
 
         ctx.subscriptions.add(
