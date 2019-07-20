@@ -2,11 +2,4 @@
 
 set -ex
 
-yarn
-env FORCE_COLOR=0 \
-  yarn run concurrently \
-    --names serve,build \
-    --prefix name \
-    --kill-others \
-    'yarn run serve --no-cache | cat' \
-    'yarn run watch:typecheck'
+yarn run tsc-watch --onSuccess "yarn run serve" --noClear
