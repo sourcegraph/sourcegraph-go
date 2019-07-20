@@ -1,16 +1,17 @@
 import '@babel/polyfill'
 
-import { activateBasicCodeIntel, registerFeedbackButton } from '@sourcegraph/basic-code-intel'
+import { Handler, initLSIF, registerFeedbackButton } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
 import * as rpc from 'vscode-jsonrpc'
 import * as lsp from 'vscode-languageserver-protocol'
+import * as LSP from 'vscode-languageserver-types'
 import * as convert from './convert-lsp-to-sea'
 import * as lspext from './lspext'
 
 import * as path from 'path'
-import { BehaviorSubject, from, Observable, Observer, of, throwError } from 'rxjs'
+import { BehaviorSubject, from, Observable, Observer, of, throwError, Unsubscribable } from 'rxjs'
 import {
     concatMap,
     distinctUntilChanged,
@@ -26,6 +27,7 @@ import {
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
+import { asyncFirst, wrapMaybe, when } from '@sourcegraph/basic-code-intel/lib/lsif'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -278,15 +280,15 @@ function repoNameFromDoc(doc: sourcegraph.TextDocument): string {
 }
 
 /**
- * Creates a function of type SendRequest that can be used to send LSP
- * requests to the corresponding language server. This returns an Observable
- * so that all the connections to that language server can be disposed of
- * when calling .unsubscribe().
+ * Creates a function of type SendRequest that can be used to send LSP requests
+ * to the corresponding language server. This returns an Unsubscribable so that
+ * all the connections to that language server can be disposed of when calling
+ * .unsubscribe().
  *
  * Internally, this maintains a mapping from rootURI to the connection
  * associated with that rootURI, so it supports multiple roots (untested).
  */
-function mkSendRequest(address: string, token: string | undefined): Observable<SendRequest> {
+function mkSendRequest(address: string, token: string | undefined): { sendRequest: SendRequest } & Unsubscribable {
     const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
     async function connectionFor(root: URL): Promise<rpc.MessageConnection> {
         if (rootURIToConnection[root.href]) {
@@ -315,9 +317,9 @@ function mkSendRequest(address: string, token: string | undefined): Observable<S
         }
     }
 
-    return new Observable((observer: Observer<SendRequest>) => {
-        observer.next(sendRequest)
-        return () => {
+    return {
+        sendRequest,
+        unsubscribe: () => {
             for (const rootURI of Object.keys(rootURIToConnection)) {
                 if (rootURIToConnection[rootURI]) {
                     // tslint:disable-next-line: no-floating-promises
@@ -325,8 +327,8 @@ function mkSendRequest(address: string, token: string | undefined): Observable<S
                     delete rootURIToConnection[rootURI]
                 }
             }
-        }
-    })
+        },
+    }
 }
 
 interface FileMatch {
@@ -566,38 +568,22 @@ function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext): Promise<void> {
+export async function initLSP(ctx: sourcegraph.ExtensionContext) {
     const accessToken = await getOrTryToCreateAccessToken()
-    const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
-    ctx.subscriptions.add(
-        sourcegraph.configuration.subscribe(() => {
-            settings.next(sourcegraph.configuration.get<Settings>().value)
-        })
-    )
-    const langserverAddress = settings.pipe(map(settings => settings['go.serverUrl']))
-
-    const NO_ADDRESS_ERROR = `To get Go code intelligence, add "${'go.address' as keyof Settings}": "wss://example.com" to your settings.`
-
-    const sendRequestObservable = langserverAddress.pipe(
-        switchMap(address => (address ? mkSendRequest(address, accessToken) : of(undefined))),
-        shareReplay(1)
-    )
-
-    function sendRequest(params: SendRequestParams): Promise<any> {
-        return sendRequestObservable
-            .pipe(
-                take(1),
-                switchMap(send => (send ? send(params) : throwError(NO_ADDRESS_ERROR)))
-            )
-            .toPromise()
+    const langserverAddress = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
+    if (!langserverAddress) {
+        return {
+            hover: () => Promise.resolve(undefined),
+            definition: () => Promise.resolve(undefined),
+            references: () => Promise.resolve(undefined),
+        }
     }
 
-    // TODO When go.langserver-address is set to an invalid address
-    // and this extension fails to connect, the hover spinner hangs
-    // indefinitely. @felix, could you take a look? I'm guessing the
-    // error is not getting propagated, but despite 30 minutes of
-    // debugging I can't figure out why.
-    const sendDocPositionRequest = ({
+    const unsubscribableSendRequest = mkSendRequest(langserverAddress, accessToken)
+    const sendRequest = unsubscribableSendRequest.sendRequest
+    ctx.subscriptions.add(unsubscribableSendRequest)
+
+    const sendDocPositionRequest = <T>({
         doc,
         pos,
         ty,
@@ -607,7 +593,7 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
         pos: sourcegraph.Position
         ty: any
         useCache: boolean
-    }): Promise<any> =>
+    }): Promise<T> =>
         sendRequest({
             rootURI: rootURIFromDoc(doc),
             requestType: ty,
@@ -615,116 +601,115 @@ export async function activateUsingWebSockets(ctx: sourcegraph.ExtensionContext)
             useCache,
         })
 
-    ctx.subscriptions.add(
-        sourcegraph.languages.registerHoverProvider([{ pattern: '*.go' }], {
-            provideHover: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({ doc, pos, ty: lsp.HoverRequest.type, useCache: true })
-                return convert.hover(response)
-            },
+    const hover = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+        convert.hover(
+            await sendDocPositionRequest<LSP.Hover | null>({
+                doc,
+                pos,
+                ty: lsp.HoverRequest.type,
+                useCache: true,
+            })
+        )
+    const definition = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+        convert.xdefinition({
+            currentDocURI: doc.uri,
+            xdefinition: await sendDocPositionRequest<lspext.Xdefinition[] | null>({
+                doc,
+                pos,
+                ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+                useCache: true,
+            }),
         })
-    )
-
-    ctx.subscriptions.add(
-        sourcegraph.languages.registerDefinitionProvider([{ pattern: '*.go' }], {
-            provideDefinition: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({
-                    doc,
-                    pos,
-                    ty: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
-                    useCache: true,
-                })
-                return convert.xdefinition({ currentDocURI: doc.uri, xdefinition: response })
-            },
+    const references = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+        convert.references({
+            currentDocURI: doc.uri,
+            references: await sendDocPositionRequest<LSP.Location[]>({
+                doc,
+                pos,
+                ty: lsp.ReferencesRequest.type,
+                useCache: true,
+            }),
         })
-    )
 
-    ctx.subscriptions.add(
-        sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-            provideReferences: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({
-                    doc,
-                    pos,
-                    ty: lsp.ReferencesRequest.type,
-                    useCache: true,
-                })
-                return convert.references({ currentDocURI: doc.uri, references: response })
-            },
-        })
-    )
-
-    /**
-     * Automatically registers/deregisters a provider based on the given predicate of the settings.
-     */
-    function registerWhile({
-        register,
-        settingsPredicate,
-    }: {
-        register: () => sourcegraph.Unsubscribable
-        settingsPredicate: (settings: Settings) => boolean
-    }): sourcegraph.Unsubscribable {
-        let registration: sourcegraph.Unsubscribable | undefined
-        return from(settings)
-            .pipe(
-                map(settingsPredicate),
-                distinctUntilChanged(),
-                map(enabled => {
-                    if (enabled) {
-                        registration = register()
-                    } else {
-                        if (registration) {
-                            registration.unsubscribe()
-                            registration = undefined
-                        }
-                    }
-                }),
-                finalize(() => {
-                    if (registration) {
-                        registration.unsubscribe()
-                        registration = undefined
-                    }
-                })
-            )
-            .subscribe()
+    return {
+        hover: wrapMaybe(hover),
+        definition: wrapMaybe(definition),
+        references: wrapMaybe(references),
     }
 
-    ctx.subscriptions.add(
-        registerWhile({
-            register: () =>
-                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
-                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-                        xrefs({
-                            doc,
-                            pos,
-                            sendRequest,
-                        }).pipe(
-                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
-                            map(response => convert.xreferences({ references: response }))
-                        ),
-                }),
-            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
-        })
-    )
+    // /**
+    //  * Automatically registers/deregisters a provider based on the given predicate of the settings.
+    //  */
+    // function registerWhile({
+    //     register,
+    //     settingsPredicate,
+    // }: {
+    //     register: () => sourcegraph.Unsubscribable
+    //     settingsPredicate: (settings: Settings) => boolean
+    // }): sourcegraph.Unsubscribable {
+    //     let registration: sourcegraph.Unsubscribable | undefined
+    //     return from(settings)
+    //         .pipe(
+    //             map(settingsPredicate),
+    //             distinctUntilChanged(),
+    //             map(enabled => {
+    //                 if (enabled) {
+    //                     registration = register()
+    //                 } else {
+    //                     if (registration) {
+    //                         registration.unsubscribe()
+    //                         registration = undefined
+    //                     }
+    //                 }
+    //             }),
+    //             finalize(() => {
+    //                 if (registration) {
+    //                     registration.unsubscribe()
+    //                     registration = undefined
+    //                 }
+    //             })
+    //         )
+    //         .subscribe()
+    // }
 
-    // Implementations panel.
-    const IMPL_ID = 'go.impl' // implementations panel and provider ID
-    ctx.subscriptions.add(
-        sourcegraph.languages.registerLocationProvider(IMPL_ID, [{ pattern: '*.go' }], {
-            provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
-                const response = await sendDocPositionRequest({
-                    doc,
-                    pos,
-                    ty: lsp.ImplementationRequest.type,
-                    useCache: true,
-                })
-                return convert.references({ currentDocURI: doc.uri, references: response })
-            },
-        })
-    )
-    const panelView = sourcegraph.app.createPanelView(IMPL_ID)
-    panelView.title = 'Go ifaces/impls'
-    panelView.component = { locationProvider: IMPL_ID }
-    panelView.priority = 160
-    ctx.subscriptions.add(panelView)
+    // ctx.subscriptions.add(
+    //     registerWhile({
+    //         register: () =>
+    //             sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+    //                 provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+    //                     xrefs({
+    //                         doc,
+    //                         pos,
+    //                         sendRequest,
+    //                     }).pipe(
+    //                         scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+    //                         map(response => convert.xreferences({ references: response }))
+    //                     ),
+    //             }),
+    //         settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
+    //     })
+    // )
+
+    // // Implementations panel.
+    // const IMPL_ID = 'go.impl' // implementations panel and provider ID
+    // ctx.subscriptions.add(
+    //     sourcegraph.languages.registerLocationProvider(IMPL_ID, [{ pattern: '*.go' }], {
+    //         provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+    //             const response = await sendDocPositionRequest({
+    //                 doc,
+    //                 pos,
+    //                 ty: lsp.ImplementationRequest.type,
+    //                 useCache: true,
+    //             })
+    //             return convert.references({ currentDocURI: doc.uri, references: response })
+    //         },
+    //     })
+    // )
+    // const panelView = sourcegraph.app.createPanelView(IMPL_ID)
+    // panelView.title = 'Go ifaces/impls'
+    // panelView.component = { locationProvider: IMPL_ID }
+    // panelView.priority = 160
+    // ctx.subscriptions.add(panelView)
 }
 
 function pathname(url: string): string {
@@ -734,56 +719,81 @@ function pathname(url: string): string {
     return pathname
 }
 
+function initBasicCodeIntel() {
+    const handler = new Handler({
+        sourcegraph,
+        languageID: 'go',
+        fileExts: ['go'],
+        filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
+            const currentFileImportedPaths = fileContent
+                .split('\n')
+                .map(line => {
+                    // Matches the import at index 3
+                    const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                    return match ? match[3] : undefined
+                })
+                .filter((x): x is string => Boolean(x))
+
+            const currentFileImportPath = repo + '/' + path.dirname(filePath)
+
+            const filteredResults = results.filter(result => {
+                const resultImportPath = result.repo + '/' + path.dirname(result.file)
+                return (
+                    currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
+                    resultImportPath === currentFileImportPath
+                )
+            })
+
+            return filteredResults.length === 0 ? results : filteredResults
+        },
+        commentStyle: {
+            lineRegex: /\/\/\s?/,
+        },
+    })
+    return {
+        hover: handler.hover.bind(handler),
+        definition: handler.definition.bind(handler),
+        references: handler.references.bind(handler),
+    }
+}
+
 // No-op for Sourcegraph versions prior to 3.0.
 const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
-    async function afterActivate(): Promise<void> {
-        const address = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
-        if (address) {
-            ctx.subscriptions.add(registerFeedbackButton({ languageID: 'go', sourcegraph, isPrecise: true }))
 
-            await activateUsingWebSockets(ctx)
-        } else {
-            ctx.subscriptions.add(
-                registerFeedbackButton({
-                    languageID: 'go',
-                    sourcegraph,
-                    isPrecise: false,
-                })
-            )
-
-            activateBasicCodeIntel({
-                sourcegraph,
-                languageID: 'go',
-                fileExts: ['go'],
-                filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
-                    const currentFileImportedPaths = fileContent
-                        .split('\n')
-                        .map(line => {
-                            // Matches the import at index 3
-                            const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
-                            return match ? match[3] : undefined
-                        })
-                        .filter((x): x is string => Boolean(x))
-
-                    const currentFileImportPath = repo + '/' + path.dirname(filePath)
-
-                    const filteredResults = results.filter(result => {
-                        const resultImportPath = result.repo + '/' + path.dirname(result.file)
-                        return (
-                            currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
-                            resultImportPath === currentFileImportPath
-                        )
-                    })
-
-                    return filteredResults.length === 0 ? results : filteredResults
+        ctx.subscriptions.add(
+            sourcegraph.languages.registerHoverProvider(['*.go'], {
+                provideHover: (doc: any,pos:any) => {
+                    console.log('hov2')
+                    return null
                 },
-                commentStyle: {
-                    lineRegex: /\/\/\s?/,
-                },
-            })(ctx)
-        }
-    }
-    setTimeout(afterActivate, 100)
+            })
+        )
+        console.log('reggedit')
+    // async function afterActivate(): Promise<void> {
+    //     const lsif = initLSIF()
+    //     const lsp = await initLSP(ctx)
+    //     const basicCodeIntel = initBasicCodeIntel()
+
+    //     ctx.subscriptions.add(
+    //         sourcegraph.languages.registerHoverProvider(['*.go'], {
+    //             provideHover: (doc,pos) => {
+    //                 console.log('hov')
+    //                 return asyncFirst([lsif.hover, lsp.hover, wrapMaybe(basicCodeIntel.hover)], null)(doc, pos)
+    //             },
+    //         })
+    //     )
+    //     ctx.subscriptions.add(
+    //         sourcegraph.languages.registerDefinitionProvider(['*.go'], {
+    //             provideDefinition: asyncFirst([lsif.definition, lsp.definition, wrapMaybe(basicCodeIntel.definition)], null),
+    //         })
+    //     )
+    //     ctx.subscriptions.add(
+    //         sourcegraph.languages.registerReferenceProvider(['*.go'], {
+    //             provideReferences: asyncFirst([lsif.references, lsp.references, wrapMaybe(basicCodeIntel.references)], null),
+    //         })
+    //     )
+    // }
+    // setTimeout(afterActivate, 100)
 }
