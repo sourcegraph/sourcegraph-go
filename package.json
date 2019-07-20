@@ -148,11 +148,12 @@
     "mkdirp-promise": "^5.0.1",
     "parcel-bundler": "^1.11.0",
     "sourcegraph": "^23.0.1",
+    "tsc-watch": "^2.2.1",
     "tslint": "^5.18.0",
     "typescript": "^3.1.6"
   },
   "dependencies": {
-    "@sourcegraph/basic-code-intel": "6.0.18",
+    "@sourcegraph/basic-code-intel": "7.0.1",
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
     "prettier": "^1.16.4",
     "rxjs": "^6.3.3",
