@@ -288,7 +288,10 @@ function repoNameFromDoc(doc: sourcegraph.TextDocument): string {
  * Internally, this maintains a mapping from rootURI to the connection
  * associated with that rootURI, so it supports multiple roots (untested).
  */
-function mkSendRequest<T>(address: string, token: string | undefined): { sendRequest: SendRequest<T> } & Unsubscribable {
+function mkSendRequest<T>(
+    address: string,
+    token: string | undefined
+): { sendRequest: SendRequest<T> } & Unsubscribable {
     const rootURIToConnection: { [rootURI: string]: Promise<rpc.MessageConnection> } = {}
     async function connectionFor(root: URL): Promise<rpc.MessageConnection> {
         if (rootURIToConnection[root.href]) {
@@ -681,7 +684,8 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext) {
     }
 
     const unsubscribableSendRequest = mkSendRequest<any>(langserverAddress, accessToken)
-    const sendRequest = <T>(...args: Parameters<typeof unsubscribableSendRequest.sendRequest>): Promise<T> => unsubscribableSendRequest.sendRequest(...args)
+    const sendRequest = <T>(...args: Parameters<typeof unsubscribableSendRequest.sendRequest>): Promise<T> =>
+        unsubscribableSendRequest.sendRequest(...args)
     ctx.subscriptions.add(unsubscribableSendRequest)
 
     const hover = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
