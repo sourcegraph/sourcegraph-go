@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { Handler, initLSIF, registerFeedbackButton } from '@sourcegraph/basic-code-intel'
+import { Handler, initLSIF } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
@@ -760,40 +760,35 @@ function initBasicCodeIntel() {
 // No-op for Sourcegraph versions prior to 3.0.
 const DUMMY_CTX = { subscriptions: { add: (_unsubscribable: any) => void 0 } }
 
+const goFiles = [{ pattern: '*.go' }]
+
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
+    async function afterActivate(): Promise<void> {
+        const lsif = initLSIF()
+        const lsp = await initLSP(ctx)
+        const basicCodeIntel = initBasicCodeIntel()
 
         ctx.subscriptions.add(
-            sourcegraph.languages.registerHoverProvider(['*.go'], {
-                provideHover: (doc: any,pos:any) => {
-                    console.log('hov2')
-                    return null
-                },
+            sourcegraph.languages.registerHoverProvider(goFiles, {
+                provideHover: asyncFirst([lsif.hover, lsp.hover, wrapMaybe(basicCodeIntel.hover)], null),
             })
         )
-        console.log('reggedit')
-    // async function afterActivate(): Promise<void> {
-    //     const lsif = initLSIF()
-    //     const lsp = await initLSP(ctx)
-    //     const basicCodeIntel = initBasicCodeIntel()
-
-    //     ctx.subscriptions.add(
-    //         sourcegraph.languages.registerHoverProvider(['*.go'], {
-    //             provideHover: (doc,pos) => {
-    //                 console.log('hov')
-    //                 return asyncFirst([lsif.hover, lsp.hover, wrapMaybe(basicCodeIntel.hover)], null)(doc, pos)
-    //             },
-    //         })
-    //     )
-    //     ctx.subscriptions.add(
-    //         sourcegraph.languages.registerDefinitionProvider(['*.go'], {
-    //             provideDefinition: asyncFirst([lsif.definition, lsp.definition, wrapMaybe(basicCodeIntel.definition)], null),
-    //         })
-    //     )
-    //     ctx.subscriptions.add(
-    //         sourcegraph.languages.registerReferenceProvider(['*.go'], {
-    //             provideReferences: asyncFirst([lsif.references, lsp.references, wrapMaybe(basicCodeIntel.references)], null),
-    //         })
-    //     )
-    // }
-    // setTimeout(afterActivate, 100)
+        ctx.subscriptions.add(
+            sourcegraph.languages.registerDefinitionProvider(goFiles, {
+                provideDefinition: asyncFirst(
+                    [lsif.definition, lsp.definition, wrapMaybe(basicCodeIntel.definition)],
+                    null
+                ),
+            })
+        )
+        ctx.subscriptions.add(
+            sourcegraph.languages.registerReferenceProvider(goFiles, {
+                provideReferences: asyncFirst(
+                    [lsif.references, lsp.references, wrapMaybe(basicCodeIntel.references)],
+                    null
+                ),
+            })
+        )
+    }
+    setTimeout(afterActivate, 100)
 }
