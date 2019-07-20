@@ -27,7 +27,9 @@ import {
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
-import { asyncFirst, wrapMaybe, when } from '@sourcegraph/basic-code-intel/lib/lsif'
+// This is the (temporarily) intended usage.
+// tslint:disable-next-line: no-submodule-imports
+import { asyncFirst, wrapMaybe, Maybe } from '@sourcegraph/basic-code-intel/lib/lsif'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -663,10 +665,28 @@ function registerImplementations({
     ctx.subscriptions.add(panelView)
 }
 
+interface MaybeProviders {
+    hover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<Maybe<sourcegraph.Hover | null>>
+    definition: (
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ) => Promise<Maybe<sourcegraph.Definition | null>>
+    references: (
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ) => Promise<Maybe<sourcegraph.Location[] | null>>
+}
+
+interface Providers {
+    hover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Hover | null>
+    definition: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Definition | null>
+    references: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Location[] | null>
+}
+
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export async function initLSP(ctx: sourcegraph.ExtensionContext) {
+export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeProviders> {
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     ctx.subscriptions.add(
         sourcegraph.configuration.subscribe(() => {
@@ -737,7 +757,7 @@ function pathname(url: string): string {
     return pathname
 }
 
-function initBasicCodeIntel() {
+function initBasicCodeIntel(): Providers {
     const handler = new Handler({
         sourcegraph,
         languageID: 'go',
