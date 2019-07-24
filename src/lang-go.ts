@@ -802,6 +802,7 @@ const goFiles = [{ pattern: '*.go' }]
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
         const lsif = initLSIF()
+        // When access token creation fails, this becomes a noop
         const lsp = await initLSP(ctx).catch<MaybeProviders>(() => noopMaybeProviders)
         const basicCodeIntel = initBasicCodeIntel()
 
