@@ -153,7 +153,7 @@
     "typescript": "^3.1.6"
   },
   "dependencies": {
-    "@sourcegraph/basic-code-intel": "7.0.1",
+    "@sourcegraph/basic-code-intel": "7.0.3",
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
     "prettier": "^1.16.4",
     "rxjs": "^6.3.3",
