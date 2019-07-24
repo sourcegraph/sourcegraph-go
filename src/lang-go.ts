@@ -238,7 +238,7 @@ async function connectAndInitialize(
                 rootPath: '/',
                 initializationOptions: {
                     zipURL: constructZipURL({
-                        repoName: pathname(root.href).replace(/^\/+/, ''),
+                        repoName: repoName(root.href).replace(/^\/+/, ''),
                         revision: root.search.substr(1),
                         token,
                     }),
@@ -749,7 +749,7 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
     }
 }
 
-function pathname(url: string): string {
+function repoName(url: string): string {
     let pathname = url
     pathname = pathname.slice('git://'.length)
     pathname = pathname.slice(0, pathname.indexOf('?'))
