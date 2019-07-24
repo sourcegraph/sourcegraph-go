@@ -5,8 +5,8 @@ import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
 import * as rpc from 'vscode-jsonrpc'
-import * as lsp from 'vscode-languageserver-protocol'
-import * as LSP from 'vscode-languageserver-types'
+import * as lspProtocol from 'vscode-languageserver-protocol'
+import * as lspTypes from 'vscode-languageserver-types'
 import * as convert from './convert-lsp-to-sea'
 import * as lspext from './lspext'
 
@@ -226,13 +226,13 @@ async function connectAndInitialize(
     connection.listen()
     try {
         await connection.sendRequest(
-            new lsp.RequestType<
-                lsp.InitializeParams & {
+            new lspProtocol.RequestType<
+                lspProtocol.InitializeParams & {
                     originalRootUri: string
                     rootPath: string
                 },
-                lsp.InitializeResult,
-                lsp.InitializeError,
+                lspProtocol.InitializeResult,
+                lspProtocol.InitializeError,
                 void
             >('initialize') as any,
             {
@@ -256,7 +256,7 @@ async function connectAndInitialize(
         throw e
     }
 
-    connection.sendNotification(lsp.InitializedNotification.type)
+    connection.sendNotification(lspProtocol.InitializedNotification.type)
 
     return connection
 }
@@ -487,7 +487,7 @@ function xrefs({
     const candidates = (async () => {
         const definitions = (await sendRequest({
             rootURI: rootURIFromDoc(doc),
-            requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+            requestType: new lspProtocol.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
             request: positionParams(doc, pos),
             useCache: true,
         })) as lspext.Xdefinition[] | null
@@ -541,7 +541,7 @@ function xrefs({
                 // by `new Set` above), rendering caching useless.
                 const response = (await sendRequest({
                     rootURI,
-                    requestType: new lsp.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                    requestType: new lspProtocol.RequestType<any, any, any, void>('workspace/xreferences') as any,
                     // tslint:disable-next-line:no-object-literal-type-assertion
                     request: {
                         query: definition.symbol,
@@ -558,7 +558,7 @@ function xrefs({
     )
 }
 
-function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): lsp.TextDocumentPositionParams {
+function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): lspProtocol.TextDocumentPositionParams {
     return {
         textDocument: {
             uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
@@ -641,7 +641,7 @@ function registerImplementations({
     sendRequest,
 }: {
     ctx: sourcegraph.ExtensionContext
-    sendRequest: SendRequest<LSP.Location[] | null>
+    sendRequest: SendRequest<lspTypes.Location[] | null>
 }): void {
     // Implementations panel.
     const IMPL_ID = 'go.impl' // implementations panel and provider ID
@@ -650,7 +650,7 @@ function registerImplementations({
             provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
                 const response = await sendRequest({
                     rootURI: rootURIFromDoc(doc),
-                    requestType: lsp.ImplementationRequest.type,
+                    requestType: lspProtocol.ImplementationRequest.type,
                     request: positionParams(doc, pos),
                     useCache: true,
                 })
@@ -712,9 +712,9 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
 
     const hover = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
         convert.hover(
-            await sendRequest<LSP.Hover | null>({
+            await sendRequest<lspTypes.Hover | null>({
                 rootURI: rootURIFromDoc(doc),
-                requestType: lsp.HoverRequest.type,
+                requestType: lspProtocol.HoverRequest.type,
                 request: positionParams(doc, pos),
                 useCache: true,
             })
@@ -725,7 +725,7 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
             currentDocURI: doc.uri,
             xdefinition: await sendRequest<lspext.Xdefinition[] | null>({
                 rootURI: rootURIFromDoc(doc),
-                requestType: new lsp.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
+                requestType: new lspProtocol.RequestType<any, any, any, void>('textDocument/xdefinition') as any,
                 request: positionParams(doc, pos),
                 useCache: true,
             }),
@@ -734,9 +734,9 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
     const references = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
         convert.references({
             currentDocURI: doc.uri,
-            references: await sendRequest<LSP.Location[]>({
+            references: await sendRequest<lspTypes.Location[]>({
                 rootURI: rootURIFromDoc(doc),
-                requestType: lsp.ReferencesRequest.type,
+                requestType: lspProtocol.ReferencesRequest.type,
                 request: positionParams(doc, pos),
                 useCache: true,
             }),
@@ -805,7 +805,7 @@ const goFiles = [{ pattern: '*.go' }]
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
         const lsif = initLSIF()
-        const lsp = await initLSP(ctx).catch(() => noopMaybeProviders)
+        const lsp = await initLSP(ctx).catch<MaybeProviders>(() => noopMaybeProviders)
         const basicCodeIntel = initBasicCodeIntel()
 
         ctx.subscriptions.add(
