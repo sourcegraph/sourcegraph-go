@@ -555,7 +555,10 @@ function xrefs({
     )
 }
 
-function positionParams(doc: sourcegraph.TextDocument, pos: sourcegraph.Position): lspProtocol.TextDocumentPositionParams {
+function positionParams(
+    doc: sourcegraph.TextDocument,
+    pos: sourcegraph.Position
+): lspProtocol.TextDocumentPositionParams {
     return {
         textDocument: {
             uri: `file:///${new URL(doc.uri).hash.slice(1)}`,
