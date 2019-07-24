@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { Handler, initLSIF } from '@sourcegraph/basic-code-intel'
+import { Handler, initLSIF, asyncFirst, wrapMaybe, Maybe } from '@sourcegraph/basic-code-intel'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
@@ -27,9 +27,6 @@ import {
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
-// This is the (temporarily) intended usage.
-// tslint:disable-next-line: no-submodule-imports
-import { asyncFirst, wrapMaybe, Maybe } from '@sourcegraph/basic-code-intel/lib/lsif'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
