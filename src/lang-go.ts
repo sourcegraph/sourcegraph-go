@@ -118,7 +118,7 @@ function constructZipURL({
     token: string | undefined
 }): string {
     const zipURL = sourcegraphURL()
-    // URL.pathname is different on Chrome vs Safari, so don't rely on it. Instead, constr
+    // URL.pathname is different on Chrome vs Safari, so don't rely on it.
     return (
         zipURL.protocol +
         '//' +
