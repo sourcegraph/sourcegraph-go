@@ -154,6 +154,7 @@
   },
   "dependencies": {
     "@sourcegraph/basic-code-intel": "7.0.3",
+    "@sourcegraph/lsp-client": "^2.0.0-beta.2",
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
     "prettier": "^1.16.4",
     "rxjs": "^6.3.3",
