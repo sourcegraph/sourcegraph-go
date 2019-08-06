@@ -92,15 +92,3 @@ export const xreferences = ({
         location({ currentDocURI: reference.currentDocURI, location: reference.reference })
     )
 }
-
-export const hover = (hover: lsp.Hover | null) => {
-    if (!hover) {
-        return null
-    }
-
-    return {
-        contents: { value: '' },
-        __backcompatContents: hover.contents,
-        priority: 100,
-    } as sourcegraph.Hover
-}

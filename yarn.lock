@@ -700,14 +700,28 @@
   resolved "https://registry.yarnpkg.com/@sindresorhus/is/-/is-0.7.0.tgz#9a06f4f137ee84d7df0460c1fdb1135ffa6c50fd"
   integrity sha512-ONhaKPIufzzrlNbqtWFFd+jlnemX6lJAgq9ZeiZtS7I1PIf/la7CW4m83rTXRnVnsMbW2k56pGYu7AUFJD9Pow==
 
-"@sourcegraph/basic-code-intel@7.0.1":
-  version "7.0.1"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-7.0.1.tgz#149d3551ad30e4249ecbb51786f8799d67e91ae3"
-  integrity sha512-DYUWZbCL8Hnp54FL1zrHBAv77SrtPuh3pY5yXaOpmebwSMZt3SiAiy0xhAJaPIS8zK7Pga9o9RQh9axUPUsb7g==
+"@sourcegraph/basic-code-intel@7.0.3":
+  version "7.0.3"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-7.0.3.tgz#078c100d2a0a635cc6082091718dc689b8cc113b"
+  integrity sha512-BI5bTHUkNpIPIshBg/pxOuNVarO8Dt7TlF+8c1Zpz4uqdCzufxxtkY2OPVQ/KehlJepMJiuPFmrvHrUN19p51g==
   dependencies:
     lodash "^4.17.11"
     rxjs "^6.3.3"
-    sourcegraph "^23.0.0"
+    sourcegraph "^23.0.1"
+    vscode-languageserver-types "^3.14.0"
+
+"@sourcegraph/lsp-client@^2.0.0-beta.2":
+  version "2.0.0-beta.2"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/lsp-client/-/lsp-client-2.0.0-beta.2.tgz#755363aed4bfc0d1860b5c82023e647c737c335e"
+  integrity sha512-u9kBLoU3cXEoWJkFmF53R2PjV5+WVFGcYbZr+jvxXaDm3igtZGmMcAr6KUX1e9t9S1foNnPJa/ukoXfTgHyZ7g==
+  dependencies:
+    "@sourcegraph/vscode-ws-jsonrpc" "^0.0.3-fork"
+    lodash "^4.17.11"
+    rxjs "^6.4.0"
+    sourcegraph "^23.0.1"
+    type-zoo "^3.2.1"
+    uuid "^3.3.2"
+    vscode-languageserver-protocol "^3.14.1"
     vscode-languageserver-types "^3.14.0"
 
 "@sourcegraph/prettierrc@^3.0.0":
@@ -729,7 +743,7 @@
     tslint-config-prettier "^1.6.0"
     tslint-react "^3.2.0"
 
-"@sourcegraph/vscode-ws-jsonrpc@0.0.3-fork":
+"@sourcegraph/vscode-ws-jsonrpc@0.0.3-fork", "@sourcegraph/vscode-ws-jsonrpc@^0.0.3-fork":
   version "0.0.3-fork"
   resolved "https://registry.yarnpkg.com/@sourcegraph/vscode-ws-jsonrpc/-/vscode-ws-jsonrpc-0.0.3-fork.tgz#83728a14616ef0587298e7849d960b61853a9954"
   integrity sha512-EJLq/ni66glk3xYyOZtUIEbjTCw8kMI6RvO0YQtPd+4um2+aTSM1LfN4NrsiVrRkG7EG/U2OkFlKqT8mGo6w4Q==
@@ -4892,6 +4906,13 @@ rxjs@^6.3.3:
   dependencies:
     tslib "^1.9.0"
 
+rxjs@^6.4.0:
+  version "6.5.2"
+  resolved "https://registry.yarnpkg.com/rxjs/-/rxjs-6.5.2.tgz#2e35ce815cd46d84d02a209fb4e5921e051dbec7"
+  integrity sha512-HUb7j3kvb7p7eCUHE3FqjoDsC1xfZQ4AHFWfTKSpZ+sAhhz5X1WX0ZuUqWbzB2QhSLp3DoLUG+hMdEDKqWo2Zg==
+  dependencies:
+    tslib "^1.9.0"
+
 safe-buffer@^5.0.1, safe-buffer@^5.1.0, safe-buffer@^5.1.1, safe-buffer@^5.1.2, safe-buffer@~5.1.0, safe-buffer@~5.1.1:
   version "5.1.2"
   resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.1.2.tgz#991ec69d296e0313747d59bdfd2b745c35f8828d"
@@ -5117,7 +5138,7 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   dependencies:
     vscode-languageserver-types "^3.12.0"
 
-sourcegraph@^23.0.0, sourcegraph@^23.0.1:
+sourcegraph@^23.0.1:
   version "23.0.1"
   resolved "https://registry.yarnpkg.com/sourcegraph/-/sourcegraph-23.0.1.tgz#715fcf4129a6d94bc3bfd2740d9c706ae6357ffe"
   integrity sha512-4We7zqhOagOVxNFdS6/xT/Crhb0Arw/9ytGBu8JuHfjo5yjMtcUYt22kZyu2TaPHXwyPW9muUi1eKSFA6Qg4lw==
@@ -5568,6 +5589,11 @@ type-check@~0.3.2:
   dependencies:
     prelude-ls "~1.1.2"
 
+type-zoo@^3.2.1:
+  version "3.4.0"
+  resolved "https://registry.yarnpkg.com/type-zoo/-/type-zoo-3.4.0.tgz#58c5c7f73314f8461dab0d2382d76e05c61ef5ec"
+  integrity sha512-s/PsXHBxzESKyrIgl9vjrUbwFT0ObSsP4P97BYV/NLWwWxS6oVG5qXI4ME1+8fS5V7uNnvs8pUzAoy4GsrQseQ==
+
 typedarray@^0.0.6:
   version "0.0.6"
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
@@ -5684,6 +5710,11 @@ util@0.10.3, util@^0.10.3:
   integrity sha1-evsa/lCAUkZInj23/g7TeTNqwPk=
   dependencies:
     inherits "2.0.1"
+
+uuid@^3.3.2:
+  version "3.3.2"
+  resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.3.2.tgz#1b4af4955eb3077c501c23872fc6513811587131"
+  integrity sha512-yXJmeNaw3DnnKAOKJE51sL/ZaYfWJRl1pK9dr19YFCu0ObS231AB1/LbqTKRAQ5kw8A90rA6fr4riOUpTZvQZA==
 
 v8-compile-cache@^2.0.0:
   version "2.0.2"

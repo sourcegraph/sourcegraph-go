@@ -1,6 +1,7 @@
 import '@babel/polyfill'
 
 import { Handler, initLSIF, asyncFirst, wrapMaybe, Maybe } from '@sourcegraph/basic-code-intel'
+import { convertHover } from '@sourcegraph/lsp-client/dist/lsp-conversion'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
 import * as sourcegraph from 'sourcegraph'
@@ -711,7 +712,8 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
     ctx.subscriptions.add(unsubscribableSendRequest)
 
     const hover = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-        convert.hover(
+        convertHover(
+            sourcegraph,
             await sendRequest<lspTypes.Hover | null>({
                 rootURI: rootURIFromDoc(doc),
                 requestType: lspProtocol.HoverRequest.type,
