@@ -1,7 +1,6 @@
 import '@babel/polyfill'
 
 import { Handler, initLSIF, asyncFirst, wrapMaybe, Maybe } from '@sourcegraph/basic-code-intel'
-// tslint:disable-next-line: no-submodule-imports
 import { convertHover } from '@sourcegraph/lsp-client/dist/lsp-conversion'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
