@@ -113,6 +113,10 @@
         "go.gddoURL": {
           "description": "The address to Go Doc Dot Org or a proxy that speaks the same API (only used on Sourcegraph.com).",
           "type": "string"
+        },
+        "codeIntel.lsif": {
+          "description": "Whether to use pre-computed LSIF data for code intelligence (such as hovers, definitions, and references). See https://docs.sourcegraph.com/user/code_intelligence/lsif.",
+          "type": "boolean"
         }
       }
     }
