@@ -826,10 +826,16 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
         )
         ctx.subscriptions.add(
             sourcegraph.languages.registerReferenceProvider(goFiles, {
-                provideReferences: asyncFirst(
-                    [lsif.references, lsp.references, wrapMaybe(basicCodeIntel.references)],
-                    null
-                ),
+                provideReferences: async (doc, pos) => {
+                    // Concatenates LSIF results (if present) with other results
+                    // because LSIF data might be sparse.
+                    const lsifReferences = await lsif.references(doc, pos)
+                    const otherReferences = await asyncFirst(
+                        [lsp.references, wrapMaybe(basicCodeIntel.references)],
+                        null
+                    )(doc, pos)
+                    return [...(lsifReferences === undefined ? [] : lsifReferences.value), ...(otherReferences || [])]
+                },
             })
         )
     }
