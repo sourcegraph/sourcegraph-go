@@ -754,6 +754,10 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
     }
 }
 
+export function isLSPEnabled(): boolean {
+    return Boolean(sourcegraph.configuration.get<Settings>().get('go.serverUrl'))
+}
+
 function repoName(url: string): string {
     let pathname = url
     pathname = pathname.slice('git://'.length)
@@ -826,10 +830,18 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
         )
         ctx.subscriptions.add(
             sourcegraph.languages.registerReferenceProvider(goFiles, {
-                provideReferences: asyncFirst(
-                    [lsif.references, lsp.references, wrapMaybe(basicCodeIntel.references)],
-                    null
-                ),
+                provideReferences: async (doc, pos) => {
+                    if (isLSPEnabled()) {
+                        const references = await lsp.references(doc, pos)
+                        return references ? references.value : null
+                    }
+
+                    // Concatenates LSIF results (if present) with fuzzy results
+                    // because LSIF data might be sparse.
+                    const lsifReferences = await lsif.references(doc, pos)
+                    const fuzzyReferences = (await basicCodeIntel.references(doc, pos)) || []
+                    return [...(lsifReferences === undefined ? [] : lsifReferences.value), ...fuzzyReferences]
+                },
             })
         )
     }
