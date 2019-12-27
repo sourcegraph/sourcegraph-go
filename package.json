@@ -161,7 +161,7 @@
     "@sourcegraph/lsp-client": "^2.0.0-beta.2",
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
     "prettier": "^1.16.4",
-    "rxjs": "^6.3.3",
+    "rxjs": "^6.5.4",
     "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3",
     "tagged-template-noop": "^2.1.0",
     "vscode-jsonrpc": "^4.0.0",
