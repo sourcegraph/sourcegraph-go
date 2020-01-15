@@ -700,13 +700,14 @@
   resolved "https://registry.yarnpkg.com/@sindresorhus/is/-/is-0.7.0.tgz#9a06f4f137ee84d7df0460c1fdb1135ffa6c50fd"
   integrity sha512-ONhaKPIufzzrlNbqtWFFd+jlnemX6lJAgq9ZeiZtS7I1PIf/la7CW4m83rTXRnVnsMbW2k56pGYu7AUFJD9Pow==
 
-"@sourcegraph/basic-code-intel@7.0.10":
-  version "7.0.10"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-7.0.10.tgz#26d1af33f48075199e4ec0ca1cb53d64bdcb162f"
-  integrity sha512-lZNd90AJFRJIQM2V8tzxzVlXPRQMrdIJ81T8vzGKXPwRjkT+Qr4mCqoRJKERL6J3OOcb9ElfQ3KwzSNvawwL2g==
+"@sourcegraph/basic-code-intel@8.0.0":
+  version "8.0.0"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/basic-code-intel/-/basic-code-intel-8.0.0.tgz#25fc0748c7dc9e9b8d35ff7e3c098e0929d8475f"
+  integrity sha512-+feTbHTUBOb7fCjFktSCGG+a33UjBBAMzr88vwg7ggwGkdRL3CyqPXZXIKu83bsFRbZdSNti+S4fVf+m/laVqQ==
   dependencies:
     lodash "^4.17.11"
     rxjs "^6.3.3"
+    semver "^6.3.0"
     sourcegraph "^23.0.1"
     vscode-languageserver-types "^3.14.0"
 
@@ -4931,6 +4932,11 @@ sax@^1.2.4, sax@~1.2.1, sax@~1.2.4:
   version "5.6.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.6.0.tgz#7e74256fbaa49c75aa7c7a205cc22799cac80004"
   integrity sha512-RS9R6R35NYgQn++fkDWaOmqGoj4Ek9gGs+DPxNUZKuwE183xjJroKvyo1IzVFeXvUrvmALy6FWD5xrdJT25gMg==
+
+semver@^6.3.0:
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-6.3.0.tgz#ee0a64c8af5e8ceea67687b133761e1becbd1d3d"
+  integrity sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==
 
 send@0.16.2:
   version "0.16.2"
