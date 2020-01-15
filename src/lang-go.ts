@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { Handler, initLSIF, asyncFirst, wrapMaybe, Maybe } from '@sourcegraph/basic-code-intel'
+import { Handler, initLSIF, asyncFirst, wrapMaybe, Maybe, impreciseBadge } from '@sourcegraph/basic-code-intel'
 import { convertHover } from '@sourcegraph/lsp-client/dist/lsp-conversion'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
@@ -817,15 +817,50 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
 
         ctx.subscriptions.add(
             sourcegraph.languages.registerHoverProvider(goFiles, {
-                provideHover: asyncFirst([lsif.hover, lsp.hover, wrapMaybe(basicCodeIntel.hover)], null),
+                provideHover: async (doc, pos) => {
+                    const lsifResult = await lsif.hover(doc, pos)
+                    if (lsifResult) {
+                        return lsifResult.value
+                    }
+
+                    const lspResult = await lsp.hover(doc, pos)
+                    if (lspResult) {
+                        return lspResult.value
+                    }
+
+                    const val = await basicCodeIntel.hover(doc, pos)
+                    if (!val) {
+                        return undefined
+                    }
+
+                    return { ...val, badge: impreciseBadge }
+                },
             })
         )
         ctx.subscriptions.add(
             sourcegraph.languages.registerDefinitionProvider(goFiles, {
-                provideDefinition: asyncFirst(
-                    [lsif.definition, lsp.definition, wrapMaybe(basicCodeIntel.definition)],
-                    null
-                ),
+                provideDefinition: async (doc, pos) => {
+                    const lsifResult = await lsif.definition(doc, pos)
+                    if (lsifResult) {
+                        return lsifResult.value
+                    }
+
+                    const lspResult = await lsp.definition(doc, pos)
+                    if (lspResult) {
+                        return lspResult.value
+                    }
+
+                    const val = await basicCodeIntel.definition(doc, pos)
+                    if (!val) {
+                        return undefined
+                    }
+
+                    if (Array.isArray(val)) {
+                        return val.map(v => ({ ...v, badge: impreciseBadge }))
+                    }
+
+                    return { ...val, badge: impreciseBadge }
+                },
             })
         )
         ctx.subscriptions.add(
@@ -850,7 +885,12 @@ export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
                     return [
                         ...(lsifReferences === undefined ? [] : lsifReferences.value),
                         // Drop fuzzy references from files that have LSIF results.
-                        ...fuzzyReferences.filter(fuzzyRef => !lsifFiles.has(file(fuzzyRef))),
+                        ...fuzzyReferences
+                            .filter(fuzzyRef => !lsifFiles.has(file(fuzzyRef)))
+                            .map(v => ({
+                                ...v,
+                                badge: impreciseBadge,
+                            })),
                     ]
                 },
             })
