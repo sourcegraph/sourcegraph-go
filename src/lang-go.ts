@@ -33,7 +33,6 @@ import {
     ImplementationsProvider,
     ExternalReferenceProvider,
 } from '@sourcegraph/basic-code-intel/lib/activation'
-import { observableToAsyncGenerator } from './util'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -479,7 +478,7 @@ query FindDependents($query: String!) {
  * - Loop through each repository, create a new connection to the language
  *   server, and call xreferences
  */
-function xrefs({
+async function* xrefs({
     doc,
     pos,
     sendRequest,
@@ -487,7 +486,7 @@ function xrefs({
     doc: sourcegraph.TextDocument
     pos: sourcegraph.Position
     sendRequest: SendRequest<any>
-}): Observable<lspext.Xreference & { currentDocURI: string }> {
+}): AsyncGenerator<lspext.Xreference & { currentDocURI: string }> {
     const candidates = (async () => {
         const definitions = (await sendRequest({
             rootURI: rootURIFromDoc(doc),
@@ -535,31 +534,26 @@ function xrefs({
         return Array.from(repos).map(repo => ({ repo, definition }))
     })()
 
-    return from(candidates).pipe(
-        concatMap(candidates => candidates),
-        mergeMap(
-            async ({ repo, definition }) => {
-                const rootURI = new URL(`git://${repo}?HEAD`)
-                // This creates a new connection and immediately disposes it because
-                // each xreferences request here has a different rootURI (enforced
-                // by `new Set` above), rendering caching useless.
-                const response = (await sendRequest({
-                    rootURI,
-                    requestType: new lspProtocol.RequestType<any, any, any, void>('workspace/xreferences') as any,
-                    // tslint:disable-next-line:no-object-literal-type-assertion
-                    request: {
-                        query: definition.symbol,
-                        limit: 20,
-                    } as { query: lspext.LSPSymbol; limit: number },
-                    useCache: false,
-                })) as lspext.Xreference[]
+    for (const { repo, definition } of await candidates) {
+        const rootURI = new URL(`git://${repo}?HEAD`)
+        // This creates a new connection and immediately disposes it because
+        // each xreferences request here has a different rootURI (enforced
+        // by `new Set` above), rendering caching useless.
+        const response = (await sendRequest({
+            rootURI,
+            requestType: new lspProtocol.RequestType<any, any, any, void>('workspace/xreferences') as any,
+            // tslint:disable-next-line:no-object-literal-type-assertion
+            request: {
+                query: definition.symbol,
+                limit: 20,
+            } as { query: lspext.LSPSymbol; limit: number },
+            useCache: false,
+        })) as lspext.Xreference[]
 
-                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
-            },
-            10 // 10 concurrent connections
-        ),
-        concatMap(references => references)
-    )
+        for (const v of (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))) {
+            yield v
+        }
+    }
 }
 
 function positionParams(
@@ -623,19 +617,17 @@ function registerExternalReferences({
     sendRequest: SendRequest<any>
     settings: Observable<Settings>
 }): ExternalReferenceProvider {
+    async function* references(doc: sourcegraph.TextDocument, pos: sourcegraph.Position) {
+        const response = []
+        for await (const v of xrefs({ doc, pos, sendRequest })) {
+            response.push(v)
+            yield convert.xreferences({ references: response })
+        }
+    }
+
     return {
         settingName: 'go.showExternalReferences',
-        references: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-            observableToAsyncGenerator<sourcegraph.Location[]>(
-                xrefs({
-                    doc,
-                    pos,
-                    sendRequest,
-                }).pipe(
-                    scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
-                    map(response => convert.xreferences({ references: response }))
-                )
-            ),
+        references,
     }
 }
 
@@ -744,8 +736,8 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<LSPPro
         })
     }
 
-    registerExternalReferences({ ctx, sendRequest, settings })
-    registerImplementations({ ctx, sendRequest })
+    // registerExternalReferences({ ctx, sendRequest, settings })
+    // registerImplementations({ ctx, sendRequest })
 
     return {
         hover,
