@@ -687,7 +687,10 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<LSPPro
         unsubscribableSendRequest.sendRequest(...args)
     ctx.subscriptions.add(unsubscribableSendRequest)
 
-    async function* hover(doc: sourcegraph.TextDocument, pos: sourcegraph.Position) {
+    async function* hover(
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ): AsyncGenerator<sourcegraph.Hover | null, void, undefined> {
         yield convertHover(
             sourcegraph,
             await sendRequest<lspTypes.Hover | null>({
@@ -699,7 +702,10 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<LSPPro
         )
     }
 
-    async function* definition(doc: sourcegraph.TextDocument, pos: sourcegraph.Position) {
+    async function* definition(
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ): AsyncGenerator<sourcegraph.Definition, void, undefined> {
         yield convert.xdefinition({
             currentDocURI: doc.uri,
             xdefinition: await sendRequest<lspext.Xdefinition[] | null>({
@@ -711,7 +717,10 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<LSPPro
         })
     }
 
-    async function* references(doc: sourcegraph.TextDocument, pos: sourcegraph.Position) {
+    async function* references(
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ): AsyncGenerator<sourcegraph.Location[] | null, void, undefined> {
         yield convert.references({
             currentDocURI: doc.uri,
             references: await sendRequest<lspTypes.Location[]>({
