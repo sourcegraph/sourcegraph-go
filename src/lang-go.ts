@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { activateCodeIntel, HandlerArgs } from '@sourcegraph/basic-code-intel'
+import { activateCodeIntel, LSPProviders, HandlerArgs } from '@sourcegraph/basic-code-intel'
 import { convertHover } from '@sourcegraph/lsp-client/dist/lsp-conversion'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
@@ -28,11 +28,6 @@ import {
 import { ConsoleLogger, createWebSocketConnection } from '@sourcegraph/vscode-ws-jsonrpc'
 import gql from 'tagged-template-noop'
 import { Settings } from './settings'
-import {
-    LSPProviders,
-    ImplementationsProvider,
-    ExternalReferenceProvider,
-} from '@sourcegraph/basic-code-intel/lib/activation'
 
 // If we can rid ourselves of file:// URIs, this type won't be necessary and we
 // can use lspext.Xreference directly.
@@ -478,7 +473,7 @@ query FindDependents($query: String!) {
  * - Loop through each repository, create a new connection to the language
  *   server, and call xreferences
  */
-async function* xrefs({
+function xrefs({
     doc,
     pos,
     sendRequest,
@@ -486,7 +481,7 @@ async function* xrefs({
     doc: sourcegraph.TextDocument
     pos: sourcegraph.Position
     sendRequest: SendRequest<any>
-}): AsyncGenerator<lspext.Xreference & { currentDocURI: string }> {
+}): Observable<lspext.Xreference & { currentDocURI: string }> {
     const candidates = (async () => {
         const definitions = (await sendRequest({
             rootURI: rootURIFromDoc(doc),
@@ -534,26 +529,31 @@ async function* xrefs({
         return Array.from(repos).map(repo => ({ repo, definition }))
     })()
 
-    for (const { repo, definition } of await candidates) {
-        const rootURI = new URL(`git://${repo}?HEAD`)
-        // This creates a new connection and immediately disposes it because
-        // each xreferences request here has a different rootURI (enforced
-        // by `new Set` above), rendering caching useless.
-        const response = (await sendRequest({
-            rootURI,
-            requestType: new lspProtocol.RequestType<any, any, any, void>('workspace/xreferences') as any,
-            // tslint:disable-next-line:no-object-literal-type-assertion
-            request: {
-                query: definition.symbol,
-                limit: 20,
-            } as { query: lspext.LSPSymbol; limit: number },
-            useCache: false,
-        })) as lspext.Xreference[]
+    return from(candidates).pipe(
+        concatMap(candidates => candidates),
+        mergeMap(
+            async ({ repo, definition }) => {
+                const rootURI = new URL(`git://${repo}?HEAD`)
+                // This creates a new connection and immediately disposes it because
+                // each xreferences request here has a different rootURI (enforced
+                // by `new Set` above), rendering caching useless.
+                const response = (await sendRequest({
+                    rootURI,
+                    requestType: new lspProtocol.RequestType<any, any, any, void>('workspace/xreferences') as any,
+                    // tslint:disable-next-line:no-object-literal-type-assertion
+                    request: {
+                        query: definition.symbol,
+                        limit: 20,
+                    } as { query: lspext.LSPSymbol; limit: number },
+                    useCache: false,
+                })) as lspext.Xreference[]
 
-        for (const v of (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))) {
-            yield v
-        }
-    }
+                return (response || []).map(ref => ({ ...ref, currentDocURI: rootURI.href }))
+            },
+            10 // 10 concurrent connections
+        ),
+        concatMap(references => references)
+    )
 }
 
 function positionParams(
@@ -616,19 +616,25 @@ function registerExternalReferences({
     ctx: sourcegraph.ExtensionContext
     sendRequest: SendRequest<any>
     settings: Observable<Settings>
-}): ExternalReferenceProvider {
-    async function* references(doc: sourcegraph.TextDocument, pos: sourcegraph.Position) {
-        const response = []
-        for await (const v of xrefs({ doc, pos, sendRequest })) {
-            response.push(v)
-            yield convert.xreferences({ references: response })
-        }
-    }
-
-    return {
-        settingName: 'go.showExternalReferences',
-        references,
-    }
+}): void {
+    ctx.subscriptions.add(
+        registerWhile({
+            register: () =>
+                sourcegraph.languages.registerReferenceProvider([{ pattern: '*.go' }], {
+                    provideReferences: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
+                        xrefs({
+                            doc,
+                            pos,
+                            sendRequest,
+                        }).pipe(
+                            scan((acc: XRef[], curr: XRef) => [...acc, curr], [] as XRef[]),
+                            map(response => convert.xreferences({ references: response }))
+                        ),
+                }),
+            settingsPredicate: settings => Boolean(settings['go.showExternalReferences']),
+            settings,
+        })
+    )
 }
 
 function registerImplementations({
@@ -636,48 +642,29 @@ function registerImplementations({
     sendRequest,
 }: {
     ctx: sourcegraph.ExtensionContext
-    sendRequest: SendRequest<lspTypes.Location[]>
-}): ImplementationsProvider {
+    sendRequest: SendRequest<lspTypes.Location[] | null>
+}): void {
     // Implementations panel.
-    async function* locations(doc: sourcegraph.TextDocument, pos: sourcegraph.Position) {
-        const response = await sendRequest({
-            rootURI: rootURIFromDoc(doc),
-            requestType: lspProtocol.ImplementationRequest.type,
-            request: positionParams(doc, pos),
-            useCache: true,
+    const IMPL_ID = 'go.impl' // implementations panel and provider ID
+    ctx.subscriptions.add(
+        sourcegraph.languages.registerLocationProvider(IMPL_ID, [{ pattern: '*.go' }], {
+            provideLocations: async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => {
+                const response = await sendRequest({
+                    rootURI: rootURIFromDoc(doc),
+                    requestType: lspProtocol.ImplementationRequest.type,
+                    request: positionParams(doc, pos),
+                    useCache: true,
+                })
+                return convert.references({ currentDocURI: doc.uri, references: response })
+            },
         })
-        yield convert.references({ currentDocURI: doc.uri, references: response })
-    }
-    return {
-        implId: 'go.impl',
-        panelTitle: 'Go ifaces/impls',
-        locations,
-    }
+    )
+    const panelView = sourcegraph.app.createPanelView(IMPL_ID)
+    panelView.title = 'Go ifaces/impls'
+    panelView.component = { locationProvider: IMPL_ID }
+    panelView.priority = 160
+    ctx.subscriptions.add(panelView)
 }
-
-// interface MaybeProviders {
-//     hover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<Maybe<sourcegraph.Hover | null>>
-//     definition: (
-//         doc: sourcegraph.TextDocument,
-//         pos: sourcegraph.Position
-//     ) => Promise<Maybe<sourcegraph.Definition | null>>
-//     references: (
-//         doc: sourcegraph.TextDocument,
-//         pos: sourcegraph.Position
-//     ) => Promise<Maybe<sourcegraph.Location[] | null>>
-// }
-
-// interface Providers {
-//     hover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Hover | null>
-//     definition: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Definition | null>
-//     references: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Location[] | null>
-// }
-
-// const noopMaybeProviders = {
-//     hover: () => Promise.resolve(undefined),
-//     definition: () => Promise.resolve(undefined),
-//     references: () => Promise.resolve(undefined),
-// }
 
 /**
  * Uses WebSockets to communicate with a language server.
@@ -736,15 +723,13 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<LSPPro
         })
     }
 
-    // registerExternalReferences({ ctx, sendRequest, settings })
-    // registerImplementations({ ctx, sendRequest })
+    registerExternalReferences({ ctx, sendRequest, settings })
+    registerImplementations({ ctx, sendRequest })
 
     return {
         hover,
         definition,
         references,
-        externalReferences: registerExternalReferences({ ctx, sendRequest, settings }),
-        implementations: registerImplementations({ ctx, sendRequest }),
     }
 }
 
