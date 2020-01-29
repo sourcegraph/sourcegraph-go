@@ -725,10 +725,10 @@
     vscode-languageserver-protocol "^3.14.1"
     vscode-languageserver-types "^3.14.0"
 
-"@sourcegraph/prettierrc@^3.0.0":
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/@sourcegraph/prettierrc/-/prettierrc-3.0.0.tgz#716b64b287565f98f539f76bea206912ab4d03b3"
-  integrity sha512-ziLujsC3IESHGYdtiJ7yVjte9i7mr6jKWTYtCVqgOWeY1Er0/xsQ/sdZIyK61tD282wvd7VjS4pk5RoGEN7biw==
+"@sourcegraph/prettierrc@^3.0.2":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@sourcegraph/prettierrc/-/prettierrc-3.0.2.tgz#a8fb80ed5712a59cd60eb62f0969090ebc386a80"
+  integrity sha512-HCEKIIgOLap22yvnMcr+v6X/1LK6LuVd5MhGLxjYsb7irI2KNEQpalR5SKjsfYPawzVcgCPu1QsD0Oy4iGdPuA==
 
 "@sourcegraph/tsconfig@^4.0.0":
   version "4.0.0"
@@ -4528,10 +4528,10 @@ prepend-http@^1.0.0:
   resolved "https://registry.yarnpkg.com/prepend-http/-/prepend-http-1.0.4.tgz#d4f4562b0ce3696e41ac52d0e002e57a635dc6dc"
   integrity sha1-1PRWKwzjaW5BrFLQ4ALlemNdxtw=
 
-prettier@^1.16.4:
-  version "1.16.4"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.16.4.tgz#73e37e73e018ad2db9c76742e2647e21790c9717"
-  integrity sha512-ZzWuos7TI5CKUeQAtFd6Zhm2s6EpAD/ZLApIhsF9pRvRtM1RFo61dM/4MSRUA0SuLugA/zgrZD8m0BaY46Og7g==
+prettier@^1.19.1:
+  version "1.19.1"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.19.1.tgz#f7d7f5ff8a9cd872a7be4ca142095956a60797cb"
+  integrity sha512-s7PoyDv/II1ObgQunCbB9PdLmUcBZcnWOcxDh7O0N/UwDEsHyqkW+Qh28jW+mVuCdx7gLB0BotYI1Y6uI9iyew==
 
 private@^0.1.6:
   version "0.1.8"
