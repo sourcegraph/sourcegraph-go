@@ -162,7 +162,7 @@
     "@sourcegraph/vscode-ws-jsonrpc": "0.0.3-fork",
     "prettier": "^1.16.4",
     "rxjs": "^6.3.3",
-    "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#0b0173feef37d1f4f68d881c95ac3f4c97bfedb3",
+    "sourcegraph-langserver-http": "https://github.com/sourcegraph/sourcegraph-langserver-http#312f5f464576be304f5259cd0a76227b148daa47",
     "tagged-template-noop": "^2.1.0",
     "vscode-jsonrpc": "^4.0.0",
     "vscode-languageserver-protocol": "^3.14.1",
