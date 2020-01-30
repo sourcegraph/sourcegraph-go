@@ -1,6 +1,6 @@
 import '@babel/polyfill'
 
-import { Handler, initLSIF, asyncFirst, wrapMaybe, Maybe, impreciseBadge } from '@sourcegraph/basic-code-intel'
+import { activateCodeIntel, LSPProviders, HandlerArgs } from '@sourcegraph/basic-code-intel'
 import { convertHover } from '@sourcegraph/lsp-client/dist/lsp-conversion'
 import * as wsrpc from '@sourcegraph/vscode-ws-jsonrpc'
 import { ajax } from 'rxjs/ajax'
@@ -666,34 +666,10 @@ function registerImplementations({
     ctx.subscriptions.add(panelView)
 }
 
-interface MaybeProviders {
-    hover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<Maybe<sourcegraph.Hover | null>>
-    definition: (
-        doc: sourcegraph.TextDocument,
-        pos: sourcegraph.Position
-    ) => Promise<Maybe<sourcegraph.Definition | null>>
-    references: (
-        doc: sourcegraph.TextDocument,
-        pos: sourcegraph.Position
-    ) => Promise<Maybe<sourcegraph.Location[] | null>>
-}
-
-interface Providers {
-    hover: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Hover | null>
-    definition: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Definition | null>
-    references: (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) => Promise<sourcegraph.Location[] | null>
-}
-
-const noopMaybeProviders = {
-    hover: () => Promise.resolve(undefined),
-    definition: () => Promise.resolve(undefined),
-    references: () => Promise.resolve(undefined),
-}
-
 /**
  * Uses WebSockets to communicate with a language server.
  */
-export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeProviders> {
+export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<LSPProviders | undefined> {
     const settings: BehaviorSubject<Settings> = new BehaviorSubject<Settings>({})
     ctx.subscriptions.add(
         sourcegraph.configuration.subscribe(() => {
@@ -703,7 +679,7 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
     const accessToken = await getOrTryToCreateAccessToken()
     const langserverAddress = sourcegraph.configuration.get<Settings>().get('go.serverUrl')
     if (!langserverAddress) {
-        return noopMaybeProviders
+        return undefined
     }
 
     const unsubscribableSendRequest = mkSendRequest<any>(langserverAddress, accessToken)
@@ -711,8 +687,11 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
         unsubscribableSendRequest.sendRequest(...args)
     ctx.subscriptions.add(unsubscribableSendRequest)
 
-    const hover = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-        convertHover(
+    async function* hover(
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ): AsyncGenerator<sourcegraph.Hover | null, void, undefined> {
+        yield convertHover(
             sourcegraph,
             await sendRequest<lspTypes.Hover | null>({
                 rootURI: rootURIFromDoc(doc),
@@ -721,9 +700,13 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
                 useCache: true,
             })
         )
+    }
 
-    const definition = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-        convert.xdefinition({
+    async function* definition(
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ): AsyncGenerator<sourcegraph.Definition, void, undefined> {
+        yield convert.xdefinition({
             currentDocURI: doc.uri,
             xdefinition: await sendRequest<lspext.Xdefinition[] | null>({
                 rootURI: rootURIFromDoc(doc),
@@ -732,9 +715,13 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
                 useCache: true,
             }),
         })
+    }
 
-    const references = async (doc: sourcegraph.TextDocument, pos: sourcegraph.Position) =>
-        convert.references({
+    async function* references(
+        doc: sourcegraph.TextDocument,
+        pos: sourcegraph.Position
+    ): AsyncGenerator<sourcegraph.Location[] | null, void, undefined> {
+        yield convert.references({
             currentDocURI: doc.uri,
             references: await sendRequest<lspTypes.Location[]>({
                 rootURI: rootURIFromDoc(doc),
@@ -743,14 +730,15 @@ export async function initLSP(ctx: sourcegraph.ExtensionContext): Promise<MaybeP
                 useCache: true,
             }),
         })
+    }
 
     registerExternalReferences({ ctx, sendRequest, settings })
     registerImplementations({ ctx, sendRequest })
 
     return {
-        hover: wrapMaybe(hover),
-        definition: wrapMaybe(definition),
-        references: wrapMaybe(references),
+        hover,
+        definition,
+        references,
     }
 }
 
@@ -765,42 +753,35 @@ function repoName(url: string): string {
     return pathname
 }
 
-function initBasicCodeIntel(): Providers {
-    const handler = new Handler({
-        sourcegraph,
-        languageID: 'go',
-        fileExts: ['go'],
-        filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
-            const currentFileImportedPaths = fileContent
-                .split('\n')
-                .map(line => {
-                    // Matches the import at index 3
-                    const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
-                    return match ? match[3] : undefined
-                })
-                .filter((x): x is string => Boolean(x))
-
-            const currentFileImportPath = repo + '/' + path.dirname(filePath)
-
-            const filteredResults = results.filter(result => {
-                const resultImportPath = result.repo + '/' + path.dirname(result.file)
-                return (
-                    currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
-                    resultImportPath === currentFileImportPath
-                )
+const handlerArgs: HandlerArgs = {
+    sourcegraph,
+    languageID: 'go',
+    fileExts: ['go'],
+    filterDefinitions: ({ repo, filePath, pos, fileContent, results }) => {
+        const currentFileImportedPaths = fileContent
+            .split('\n')
+            .map(line => {
+                // Matches the import at index 3
+                const match = /^(import |\t)(\w+ |\. )?"(.*)"$/.exec(line)
+                return match ? match[3] : undefined
             })
+            .filter((x): x is string => Boolean(x))
 
-            return filteredResults.length === 0 ? results : filteredResults
-        },
-        commentStyle: {
-            lineRegex: /\/\/\s?/,
-        },
-    })
-    return {
-        hover: handler.hover.bind(handler),
-        definition: handler.definition.bind(handler),
-        references: handler.references.bind(handler),
-    }
+        const currentFileImportPath = repo + '/' + path.dirname(filePath)
+
+        const filteredResults = results.filter(result => {
+            const resultImportPath = result.repo + '/' + path.dirname(result.file)
+            return (
+                currentFileImportedPaths.some(i => resultImportPath.includes(i)) ||
+                resultImportPath === currentFileImportPath
+            )
+        })
+
+        return filteredResults.length === 0 ? results : filteredResults
+    },
+    commentStyle: {
+        lineRegex: /\/\/\s?/,
+    },
 }
 
 // No-op for Sourcegraph versions prior to 3.0.
@@ -810,91 +791,7 @@ const goFiles = [{ pattern: '*.go' }]
 
 export function activate(ctx: sourcegraph.ExtensionContext = DUMMY_CTX): void {
     async function afterActivate(): Promise<void> {
-        const lsif = initLSIF()
-        // When access token creation fails, this becomes a noop
-        const lsp = await initLSP(ctx).catch<MaybeProviders>(() => noopMaybeProviders)
-        const basicCodeIntel = initBasicCodeIntel()
-
-        ctx.subscriptions.add(
-            sourcegraph.languages.registerHoverProvider(goFiles, {
-                provideHover: async (doc, pos) => {
-                    const lsifResult = await lsif.hover(doc, pos)
-                    if (lsifResult) {
-                        return lsifResult.value
-                    }
-
-                    const lspResult = await lsp.hover(doc, pos)
-                    if (lspResult) {
-                        return lspResult.value
-                    }
-
-                    const val = await basicCodeIntel.hover(doc, pos)
-                    if (!val) {
-                        return undefined
-                    }
-
-                    return { ...val, badge: impreciseBadge }
-                },
-            })
-        )
-        ctx.subscriptions.add(
-            sourcegraph.languages.registerDefinitionProvider(goFiles, {
-                provideDefinition: async (doc, pos) => {
-                    const lsifResult = await lsif.definition(doc, pos)
-                    if (lsifResult) {
-                        return lsifResult.value
-                    }
-
-                    const lspResult = await lsp.definition(doc, pos)
-                    if (lspResult) {
-                        return lspResult.value
-                    }
-
-                    const val = await basicCodeIntel.definition(doc, pos)
-                    if (!val) {
-                        return undefined
-                    }
-
-                    if (Array.isArray(val)) {
-                        return val.map(v => ({ ...v, badge: impreciseBadge }))
-                    }
-
-                    return { ...val, badge: impreciseBadge }
-                },
-            })
-        )
-        ctx.subscriptions.add(
-            sourcegraph.languages.registerReferenceProvider(goFiles, {
-                provideReferences: async (doc, pos) => {
-                    if (isLSPEnabled()) {
-                        const references = await lsp.references(doc, pos)
-                        return references ? references.value : null
-                    }
-
-                    // Gets an opaque value that is the same for all locations
-                    // within a file but different from other files.
-                    const file = (loc: sourcegraph.Location) => `${loc.uri.host} ${loc.uri.pathname} ${loc.uri.hash}`
-
-                    // Concatenates LSIF results (if present) with fuzzy results
-                    // because LSIF data might be sparse.
-                    const lsifReferences = await lsif.references(doc, pos)
-                    const fuzzyReferences = (await basicCodeIntel.references(doc, pos)) || []
-
-                    const lsifFiles = new Set((lsifReferences ? lsifReferences.value : []).map(file))
-
-                    return [
-                        ...(lsifReferences === undefined ? [] : lsifReferences.value),
-                        // Drop fuzzy references from files that have LSIF results.
-                        ...fuzzyReferences
-                            .filter(fuzzyRef => !lsifFiles.has(file(fuzzyRef)))
-                            .map(v => ({
-                                ...v,
-                                badge: impreciseBadge,
-                            })),
-                    ]
-                },
-            })
-        )
+        activateCodeIntel(ctx, goFiles, handlerArgs, await initLSP(ctx))
     }
     setTimeout(afterActivate, 100)
 }
