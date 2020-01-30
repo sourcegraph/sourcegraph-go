@@ -2,4 +2,6 @@
 
 set -ex
 
+yarn -s
+
 yarn run tsc-watch --onSuccess "yarn run serve" --noClear
