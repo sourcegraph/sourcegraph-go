@@ -1,3 +1,7 @@
+# Archive
+
+This code has been moved into https://github.com/sourcegraph/sourcegraph-basic-code-intel/.
+
 # Code intelligence for Go
 
 This extension provides Go code intelligence on Sourcegraph.
